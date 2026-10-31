@@ -9,6 +9,10 @@ import { requestContext } from './middleware/request-context.js';
 import { sessionSecurity } from './modules/auth/session.js';
 import { authRoutes } from './modules/auth/auth.routes.js';
 import { registrationRoutes } from './modules/registrations/registration.routes.js';
+import { doctorRoutes } from './modules/doctors/doctor.routes.js';
+import { patientRoutes } from './modules/patients/patient.routes.js';
+import { assignmentRoutes } from './modules/assignments/assignment.routes.js';
+import { profileRoutes } from './modules/profiles/profile.routes.js';
 
 export interface AppDependencies {
   config: Environment;
@@ -42,6 +46,11 @@ export function createApp({
   const security = sessionSecurity(config);
   api.use('/auth', ...security, authRoutes(config));
   api.use('/registrations', ...security, registrationRoutes());
+  api.use('/doctors', ...security, doctorRoutes());
+  api.use('/patients', ...security, patientRoutes());
+  api.use('/me', ...security, profileRoutes());
+  // Doctor/patient prefix routers already establish security for these nested routes.
+  api.use(assignmentRoutes());
   app.use('/api/v1', api);
   app.use(notFound);
   app.use(errorHandler(logger));

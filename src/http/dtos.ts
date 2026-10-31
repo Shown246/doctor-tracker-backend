@@ -53,10 +53,21 @@ export function doctorDto(record: DoctorRecord) {
 }
 
 export function patientDto(record: PatientRecord) {
+  const today = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Dhaka',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
+  const age =
+    Number(today.slice(0, 4)) -
+    Number(record.dateOfBirth.slice(0, 4)) -
+    (today.slice(5) < record.dateOfBirth.slice(5) ? 1 : 0);
   return {
     id: record._id.toString(),
     name: record.name,
     dateOfBirth: record.dateOfBirth,
+    age,
     gender: record.gender,
     phone: record.phone,
     email: record.email,

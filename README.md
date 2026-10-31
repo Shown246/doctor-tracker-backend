@@ -1,6 +1,6 @@
 # Doctor Tracker backend
 
-Standalone Express 5 REST API, built with Node.js 24, TypeScript, Mongoose and Zod. Milestones 1 and 2 include the foundation, public registration, persistent session authentication, admin approval, and reusable access guards. Management and clinical endpoints follow in milestone 3. The frontend is a separate application and has not been started.
+Standalone Express 5 REST API, built with Node.js 24, TypeScript, Mongoose and Zod. Milestones 1–3 include the foundation, registration and approval, persistent sessions, doctor/patient management, assignments, clinical updates and private notes. The frontend is a separate application and has not been started.
 
 ## Setup
 
@@ -50,7 +50,9 @@ Every mutation requires a session-bound `X-CSRF-Token`, including registration/l
 
 See [authentication and approval usage](docs/authentication.md) for payloads and cookie-aware examples, and the generated [OpenAPI 3.1 contract](docs/openapi.json). Regenerate it with `npm run docs:openapi` after changing Zod contracts; tests detect drift. Interactive admin-only documentation follows in milestone 4.
 
-All timestamps are UTC. Birth dates are validated real `YYYY-MM-DD` dates from 1900 through today in `Asia/Dhaka`; age is derived rather than stored. Creation-date filters will use `Asia/Dhaka` calendar boundaries.
+See [management and clinical API usage](docs/management-and-clinical.md) for list queries, role permissions, revision checks, private notes, patient self-service and deletion semantics.
+
+All timestamps are UTC. Birth dates are validated real `YYYY-MM-DD` dates from 1900 through today in `Asia/Dhaka`; age is derived rather than stored. Creation-date filters use inclusive `Asia/Dhaka` calendar boundaries.
 
 ## Health and responses
 
@@ -60,6 +62,9 @@ All timestamps are UTC. Birth dates are validated real `YYYY-MM-DD` dates from 1
 | `GET /health/ready`       | `200` only while a bounded database ping succeeds; otherwise `503 NOT_READY` |
 | `/api/v1/auth/*`          | CSRF, registration, login, current account and logout                        |
 | `/api/v1/registrations/*` | Active-admin registration review and decisions                               |
+| `/api/v1/doctors/*`       | Active-admin doctor management and assignments                               |
+| `/api/v1/patients/*`      | Active-admin patient management and private-note review                      |
+| `/api/v1/me/*`            | Session-scoped doctor care and patient profiles/contact details              |
 | Other `/api/v1/*` routes  | Unknown routes return `404 NOT_FOUND`                                        |
 
 Single records use `{ data }`. Lists use `{ data, meta: { page, limit, total, totalPages } }`. Errors use `{ error: { code, message, fieldErrors?, requestId } }`. Every response has a generated `X-Request-Id`; incoming IDs are not trusted. Helmet is enabled and JSON bodies are limited to 32 KiB. Malformed JSON returns 400, oversized JSON 413, validation errors 400, duplicate keys 409 and unexpected errors 500. Responses never include stack traces or raw database errors.
@@ -100,8 +105,9 @@ src/
   modules/
     auth/                Registration, credentials, sessions, CSRF, throttles and access guards
     registrations/       Admin review and transactional approval/rejection
-    doctors/ patients/   Profile models
-    assignments/         Doctor–patient model with an optional private note
+    doctors/ patients/   Profiles, management, scoped reads and clinical writes
+    assignments/         Transactional relationships and revision-checked private notes
+    profiles/            Doctor/patient self-service routes and controllers
     dashboards/          Milestone 4 aggregation module boundary
 tests/                   HTTP, configuration, model, database and lifecycle checks
 ```
@@ -112,7 +118,7 @@ Doctor email is required and unique. Patient email is optional: blank strings ar
 
 Profiles maintain normalized full-field and word-token search keys. Indexes cover creation-date sorting with `_id` tie-breakers, normalized name sorting, search keys and common exact filters. Assignments have a unique doctor/patient pair and reverse patient lookup indexes; the private note lives on that association. Patient clinical revision and note revision start at zero. Timestamps and schema-level optimistic concurrency are enabled.
 
-Write models through validated document `save()`/`create()` operations. Query updates, `insertMany` and `bulkWrite` are intentionally rejected because they bypass document invariants and derived keys. Management services must enforce linked-email immutability, atomic relationship changes and explicit revision semantics. Use the inclusion projections and explicit DTO functions in `src/http/dtos.ts`; private notes, hashes, pending details and search internals are never part of public DTOs. The middleware and service helpers in `src/modules/auth/access.ts` enforce role/status, own-profile identity and assignment scope. Clinical write services must additionally serialize writes against unlinking in milestone 3; an assignment read alone does not lock an association.
+Write models through validated document `save()`/`create()` operations. Query updates, `insertMany` and `bulkWrite` are intentionally rejected because they bypass document invariants and derived keys. Management services enforce linked-email immutability, atomic relationship changes and explicit revision semantics. Inclusion projections and explicit DTO functions in `src/http/dtos.ts` keep notes, hashes, pending details and search internals out of generic profile responses. Middleware and services enforce role/status, own-profile identity and assignment scope. Clinical writes increment the association's internal version in the same transaction as the patient edit to serialize with unlinking. Relationship writes increment the patient's internal version to serialize with deletion. Public clinical/note revisions remain separate from these internal concurrency guards.
 
 ## Verification
 
@@ -124,6 +130,6 @@ npm test
 npm run build
 ```
 
-Vitest and Supertest cover foundation behavior plus registration injection, all account states, CSRF/origin rejection, cookie policy, absolute/store expiry, process-restart persistence, logout/replay, shared throttling, role/profile/assignment scope, safe projections, competing approvals and transaction rollback. Authorization uses test-only protected handlers; unfinished management routes are not exposed. GitHub Actions runs `npm ci` and the commands above on Node.js 24. CI requires no Atlas credentials.
+Vitest and Supertest cover foundation behavior, registration injection, all account states, CSRF/origin rejection, cookie policy, absolute/store expiry, process-restart persistence, logout/replay, shared throttling, the management permission matrix, safe projections, combined list filters, Dhaka date boundaries, competing approvals, stale clinical/note edits, simultaneous links and transaction rollback. Deterministic race tests pause writes while unlinking/deletion commits, then verify the resumed write loses access. GitHub Actions runs `npm ci` and the commands above on Node.js 24. CI requires no Atlas credentials.
 
-Work is committed locally on `main`; remote creation and pushing are left to the repository owner. See [milestone 1 validation](docs/milestone-01-validation.md) and [milestone 2 validation](docs/milestone-02-validation.md) for the recorded checks and handoff.
+Work is committed locally on `main`; remote creation and pushing are left to the repository owner. See [milestone 1 validation](docs/milestone-01-validation.md), [milestone 2 validation](docs/milestone-02-validation.md) and [milestone 3 validation](docs/milestone-03-validation.md) for the recorded checks and handoff.

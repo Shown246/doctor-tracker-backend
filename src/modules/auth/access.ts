@@ -45,6 +45,15 @@ export async function assertActiveAccount(account: CurrentUser) {
     );
 }
 
+export async function assertRole(
+  account: CurrentUser,
+  ...roles: CurrentUser['role'][]
+) {
+  await assertActiveAccount(account);
+  if (!roles.includes(account.role))
+    throw new ApiError(403, 'FORBIDDEN', 'Access is forbidden');
+}
+
 export const requireActiveAccount: RequestHandler = async (
   request,
   _response,
@@ -92,8 +101,8 @@ export async function ownProfile(account: CurrentUser) {
   throw new ApiError(404, 'NOT_FOUND', 'Profile not found');
 }
 
-// Pass the caller's transaction for clinical writes. Milestone 3 must also serialize
-// writes against unlinking; an assignment read alone is not a write lock.
+// A scope read alone is not a write lock. Clinical writes additionally serialize
+// against unlinking with an association version write in patient.service.ts.
 export async function requirePatientScope(
   account: CurrentUser,
   patientId: string,

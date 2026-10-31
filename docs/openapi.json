@@ -2,23 +2,2466 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Doctor Tracker API",
-    "version": "0.2.0",
-    "description": "Milestone 2 contract. Management and clinical endpoints will follow. All dates are UTC; birth dates are YYYY-MM-DD."
+    "version": "0.3.0",
+    "description": "Milestone 3 contract: session authentication, registration review, management, assignments, clinical care and private notes. Timestamps are UTC; date-only birth dates and creation-date query parameters use YYYY-MM-DD. Dashboards, filter metadata and interactive documentation follow in milestone 4."
   },
-  "servers": [
-    {
-      "url": "/api/v1"
-    }
-  ],
+  "servers": [{ "url": "/api/v1" }],
   "tags": [
-    {
-      "name": "Authentication"
-    },
-    {
-      "name": "Registrations"
-    }
+    { "name": "Authentication" },
+    { "name": "Registrations" },
+    { "name": "Management" },
+    { "name": "Own profile and clinical care" }
   ],
   "paths": {
+    "/doctors": {
+      "get": {
+        "tags": ["Management"],
+        "operationId": "get_doctors",
+        "summary": "List doctors and patient counts (admin)",
+        "description": "Defaults: page=1, limit=20 (maximum 100), sort=-createdAt. Sort supports createdAt, -createdAt, name, -name with _id in the same direction as a stable tie-breaker. search is a normalized, escaped literal prefix of full fields or word tokens. Exact descriptor filters are normalized. from/to are inclusive YYYY-MM-DD creation dates in Asia/Dhaka using IANA timezone rules. Reversed/invalid ranges and unknown parameters are rejected. Missing pages are empty; totalPages=0 for no matches.",
+        "security": [{ "sessionCookie": [] }],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": "1",
+              "type": "string",
+              "pattern": "^[1-9]\\d*$"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": "20",
+              "type": "string",
+              "pattern": "^[1-9]\\d*$"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "maxLength": 200 }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": "-createdAt",
+              "type": "string",
+              "enum": ["createdAt", "-createdAt", "name", "-name"]
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" }
+          },
+          {
+            "name": "specialization",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "minLength": 1, "maxLength": 120 }
+          },
+          {
+            "name": "hospital",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "minLength": 1, "maxLength": 200 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response; private, no-store",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DoctorListResponse" }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid identifier, body or query; unsupported fields are rejected",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required or has expired",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden role, inactive account, missing profile, invalid CSRF token or browser origin",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "404": {
+            "description": "Profile or assignment not found; doctors receive 404 outside their scope",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "409": {
+            "description": "Stale revision, duplicate email or attempted linked-profile email change",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "413": {
+            "description": "Request exceeds 32 KiB",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "503": {
+            "description": "Database unavailable",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Management"],
+        "operationId": "post_doctors",
+        "summary": "Create a doctor profile (admin)",
+        "description": "Requires an active account and valid linked profile. Responses are private, no-store.",
+        "security": [{ "sessionCookie": [], "csrfToken": [] }],
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/DoctorCreate" },
+              "example": {
+                "name": "Dr Example",
+                "email": "doctor@example.test",
+                "specialization": "Cardiology",
+                "hospital": "Example Hospital",
+                "phone": "+8801700000000"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful response; private, no-store",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DoctorResponse" }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid identifier, body or query; unsupported fields are rejected",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required or has expired",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden role, inactive account, missing profile, invalid CSRF token or browser origin",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "404": {
+            "description": "Profile or assignment not found; doctors receive 404 outside their scope",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "409": {
+            "description": "Stale revision, duplicate email or attempted linked-profile email change",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "413": {
+            "description": "Request exceeds 32 KiB",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "503": {
+            "description": "Database unavailable",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/doctors/{id}": {
+      "get": {
+        "tags": ["Management"],
+        "operationId": "get_doctors__id_",
+        "summary": "Read a doctor (admin)",
+        "description": "Requires an active account and valid linked profile. Responses are private, no-store.",
+        "security": [{ "sessionCookie": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "string",
+              "pattern": "^[a-f\\d]{24}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response; private, no-store",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DoctorResponse" }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid identifier, body or query; unsupported fields are rejected",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required or has expired",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden role, inactive account, missing profile, invalid CSRF token or browser origin",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "404": {
+            "description": "Profile or assignment not found; doctors receive 404 outside their scope",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "409": {
+            "description": "Stale revision, duplicate email or attempted linked-profile email change",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "413": {
+            "description": "Request exceeds 32 KiB",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "503": {
+            "description": "Database unavailable",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": ["Management"],
+        "operationId": "patch_doctors__id_",
+        "summary": "Edit doctor fields (admin)",
+        "description": "Only listed fields are editable. Email is immutable after account linkage, including disabled linked accounts. Search keys are regenerated. Competing writes retry transactionally.",
+        "security": [{ "sessionCookie": [], "csrfToken": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "string",
+              "pattern": "^[a-f\\d]{24}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/DoctorPatch" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response; private, no-store",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DoctorResponse" }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid identifier, body or query; unsupported fields are rejected",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required or has expired",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden role, inactive account, missing profile, invalid CSRF token or browser origin",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "404": {
+            "description": "Profile or assignment not found; doctors receive 404 outside their scope",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "409": {
+            "description": "Stale revision, duplicate email or attempted linked-profile email change",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "413": {
+            "description": "Request exceeds 32 KiB",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "503": {
+            "description": "Database unavailable",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/patients": {
+      "get": {
+        "tags": ["Management"],
+        "operationId": "get_patients",
+        "summary": "List patients (admin)",
+        "description": "Defaults: page=1, limit=20 (maximum 100), sort=-createdAt. Sort supports createdAt, -createdAt, name, -name with _id in the same direction as a stable tie-breaker. search is a normalized, escaped literal prefix of full fields or word tokens. Exact descriptor filters are normalized. from/to are inclusive YYYY-MM-DD creation dates in Asia/Dhaka using IANA timezone rules. Reversed/invalid ranges and unknown parameters are rejected. Missing pages are empty; totalPages=0 for no matches.",
+        "security": [{ "sessionCookie": [] }],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": "1",
+              "type": "string",
+              "pattern": "^[1-9]\\d*$"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": "20",
+              "type": "string",
+              "pattern": "^[1-9]\\d*$"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "maxLength": 200 }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": "-createdAt",
+              "type": "string",
+              "enum": ["createdAt", "-createdAt", "name", "-name"]
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" }
+          },
+          {
+            "name": "condition",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "minLength": 1, "maxLength": 2000 }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "unassessed",
+                "under_treatment",
+                "stable",
+                "critical",
+                "recovered"
+              ]
+            }
+          },
+          {
+            "name": "doctorId",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "pattern": "^[a-f\\d]{24}$" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response; private, no-store",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PatientListResponse" }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid identifier, body or query; unsupported fields are rejected",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required or has expired",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden role, inactive account, missing profile, invalid CSRF token or browser origin",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "404": {
+            "description": "Profile or assignment not found; doctors receive 404 outside their scope",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "409": {
+            "description": "Stale revision, duplicate email or attempted linked-profile email change",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "413": {
+            "description": "Request exceeds 32 KiB",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "503": {
+            "description": "Database unavailable",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Management"],
+        "operationId": "post_patients",
+        "summary": "Create a patient and optional initial assignments (admin)",
+        "description": "Creates the patient and all initial assignments atomically. doctorIds accepts at most 100 IDs and is deduplicated case-insensitively. Missing doctors abort the transaction. Email is optional and unique when present; null omits it. Empty/null address and empty condition are stored as absent. Birth dates must be real dates from 1900 through today in Asia/Dhaka. Age is derived.",
+        "security": [{ "sessionCookie": [], "csrfToken": [] }],
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/PatientCreate" },
+              "example": {
+                "name": "Example Patient",
+                "dateOfBirth": "1995-02-28",
+                "gender": "undisclosed",
+                "phone": "+8801800000000",
+                "condition": "Routine observation",
+                "status": "unassessed",
+                "doctorIds": []
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful response; private, no-store",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PatientResponse" }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid identifier, body or query; unsupported fields are rejected",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required or has expired",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden role, inactive account, missing profile, invalid CSRF token or browser origin",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "404": {
+            "description": "Profile or assignment not found; doctors receive 404 outside their scope",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "409": {
+            "description": "Stale revision, duplicate email or attempted linked-profile email change",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "413": {
+            "description": "Request exceeds 32 KiB",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "503": {
+            "description": "Database unavailable",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/patients/{id}": {
+      "get": {
+        "tags": ["Management"],
+        "operationId": "get_patients__id_",
+        "summary": "Read patient and linked-doctor summaries (admin)",
+        "description": "Includes linkedDoctors with linkedDoctorsMeta and the full linkedDoctorCount. page/limit paginate these summaries (default 20, maximum 100), newest assignments first. Notes are available only through the separate admin review endpoint.",
+        "security": [{ "sessionCookie": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "string",
+              "pattern": "^[a-f\\d]{24}$"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": "1",
+              "type": "string",
+              "pattern": "^[1-9]\\d*$"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": "20",
+              "type": "string",
+              "pattern": "^[1-9]\\d*$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response; private, no-store",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PatientDetailResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid identifier, body or query; unsupported fields are rejected",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required or has expired",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden role, inactive account, missing profile, invalid CSRF token or browser origin",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "404": {
+            "description": "Profile or assignment not found; doctors receive 404 outside their scope",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "409": {
+            "description": "Stale revision, duplicate email or attempted linked-profile email change",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "413": {
+            "description": "Request exceeds 32 KiB",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "503": {
+            "description": "Database unavailable",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": ["Management"],
+        "operationId": "patch_patients__id_",
+        "summary": "Edit demographics or shared clinical fields (admin)",
+        "description": "Assignments and internal fields are forbidden. Email cannot change or be removed after account linkage. A clinical change requires the last-read revision and increments it, recording the editor and UTC time. A revision without clinical fields is rejected. Empty condition clears it; null email/address clears those optional fields.",
+        "security": [{ "sessionCookie": [], "csrfToken": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "string",
+              "pattern": "^[a-f\\d]{24}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/PatientPatch" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response; private, no-store",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PatientResponse" }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid identifier, body or query; unsupported fields are rejected",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required or has expired",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden role, inactive account, missing profile, invalid CSRF token or browser origin",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "404": {
+            "description": "Profile or assignment not found; doctors receive 404 outside their scope",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "409": {
+            "description": "Stale revision, duplicate email or attempted linked-profile email change",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "413": {
+            "description": "Request exceeds 32 KiB",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "503": {
+            "description": "Database unavailable",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Management"],
+        "operationId": "delete_patients__id_",
+        "summary": "Permanently delete a patient (admin)",
+        "description": "Atomically removes the patient and every association/private note, disables its linked patient account and clears the profile reference. Existing patient sessions lose portal access. Concurrent assignment/clinical/note writes serialize with deletion. A missing patient returns 404.",
+        "security": [{ "sessionCookie": [], "csrfToken": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "string",
+              "pattern": "^[a-f\\d]{24}$"
+            }
+          }
+        ],
+        "responses": {
+          "204": { "description": "Success; empty body" },
+          "400": {
+            "description": "Invalid identifier, body or query; unsupported fields are rejected",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required or has expired",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden role, inactive account, missing profile, invalid CSRF token or browser origin",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "404": {
+            "description": "Profile or assignment not found; doctors receive 404 outside their scope",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "409": {
+            "description": "Stale revision, duplicate email or attempted linked-profile email change",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "413": {
+            "description": "Request exceeds 32 KiB",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "503": {
+            "description": "Database unavailable",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/doctors/{doctorId}/patients": {
+      "get": {
+        "tags": ["Management"],
+        "operationId": "get_doctors__doctorId__patients",
+        "summary": "List patients assigned to a doctor (admin)",
+        "description": "Defaults: page=1, limit=20 (maximum 100), sort=-createdAt. Sort supports createdAt, -createdAt, name, -name with _id in the same direction as a stable tie-breaker. search is a normalized, escaped literal prefix of full fields or word tokens. Exact descriptor filters are normalized. from/to are inclusive YYYY-MM-DD creation dates in Asia/Dhaka using IANA timezone rules. Reversed/invalid ranges and unknown parameters are rejected. Missing pages are empty; totalPages=0 for no matches. The path doctor must exist. Any doctorId query filter intersects the path scope.",
+        "security": [{ "sessionCookie": [] }],
+        "parameters": [
+          {
+            "name": "doctorId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "string",
+              "pattern": "^[a-f\\d]{24}$"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": "1",
+              "type": "string",
+              "pattern": "^[1-9]\\d*$"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": "20",
+              "type": "string",
+              "pattern": "^[1-9]\\d*$"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "maxLength": 200 }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": "-createdAt",
+              "type": "string",
+              "enum": ["createdAt", "-createdAt", "name", "-name"]
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" }
+          },
+          {
+            "name": "condition",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "minLength": 1, "maxLength": 2000 }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "unassessed",
+                "under_treatment",
+                "stable",
+                "critical",
+                "recovered"
+              ]
+            }
+          },
+          {
+            "name": "doctorId",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "pattern": "^[a-f\\d]{24}$" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response; private, no-store",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PatientListResponse" }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid identifier, body or query; unsupported fields are rejected",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required or has expired",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden role, inactive account, missing profile, invalid CSRF token or browser origin",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "404": {
+            "description": "Profile or assignment not found; doctors receive 404 outside their scope",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "409": {
+            "description": "Stale revision, duplicate email or attempted linked-profile email change",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "413": {
+            "description": "Request exceeds 32 KiB",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "503": {
+            "description": "Database unavailable",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/doctors/{doctorId}/patients/{patientId}": {
+      "put": {
+        "tags": ["Management"],
+        "operationId": "put_doctors__doctorId__patients__patientId_",
+        "summary": "Link a doctor and patient (admin)",
+        "description": "No body or {}. Both profiles must exist. Repeated and simultaneous links succeed with one association and preserve its assignment date and note.",
+        "security": [{ "sessionCookie": [], "csrfToken": [] }],
+        "parameters": [
+          {
+            "name": "doctorId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "string",
+              "pattern": "^[a-f\\d]{24}$"
+            }
+          },
+          {
+            "name": "patientId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "string",
+              "pattern": "^[a-f\\d]{24}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response; private, no-store",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/AssignmentResponse" }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid identifier, body or query; unsupported fields are rejected",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required or has expired",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden role, inactive account, missing profile, invalid CSRF token or browser origin",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "404": {
+            "description": "Profile or assignment not found; doctors receive 404 outside their scope",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "409": {
+            "description": "Stale revision, duplicate email or attempted linked-profile email change",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "413": {
+            "description": "Request exceeds 32 KiB",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "503": {
+            "description": "Database unavailable",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Management"],
+        "operationId": "delete_doctors__doctorId__patients__patientId_",
+        "summary": "Unlink a doctor and delete that doctor's note (admin)",
+        "description": "No body or {}. Deletes the association and its note together. Other doctors and the patient remain. The removed doctor immediately loses access. Repeated removal succeeds if both profiles exist. Relinking starts with an empty note at revision zero.",
+        "security": [{ "sessionCookie": [], "csrfToken": [] }],
+        "parameters": [
+          {
+            "name": "doctorId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "string",
+              "pattern": "^[a-f\\d]{24}$"
+            }
+          },
+          {
+            "name": "patientId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "string",
+              "pattern": "^[a-f\\d]{24}$"
+            }
+          }
+        ],
+        "responses": {
+          "204": { "description": "Success; empty body" },
+          "400": {
+            "description": "Invalid identifier, body or query; unsupported fields are rejected",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required or has expired",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden role, inactive account, missing profile, invalid CSRF token or browser origin",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "404": {
+            "description": "Profile or assignment not found; doctors receive 404 outside their scope",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "409": {
+            "description": "Stale revision, duplicate email or attempted linked-profile email change",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "413": {
+            "description": "Request exceeds 32 KiB",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "503": {
+            "description": "Database unavailable",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/patients/{patientId}/doctor-notes": {
+      "get": {
+        "tags": ["Management"],
+        "operationId": "get_patients__patientId__doctor_notes",
+        "summary": "Review private notes with doctor attribution (admin, read-only)",
+        "description": "Paginated nonempty notes, most recently updated first with _id tie-breaker. Cleared/empty notes are excluded. Admin cannot mutate notes.",
+        "security": [{ "sessionCookie": [] }],
+        "parameters": [
+          {
+            "name": "patientId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "string",
+              "pattern": "^[a-f\\d]{24}$"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": "1",
+              "type": "string",
+              "pattern": "^[1-9]\\d*$"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": "20",
+              "type": "string",
+              "pattern": "^[1-9]\\d*$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response; private, no-store",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/NoteListResponse" }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid identifier, body or query; unsupported fields are rejected",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required or has expired",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden role, inactive account, missing profile, invalid CSRF token or browser origin",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "404": {
+            "description": "Profile or assignment not found; doctors receive 404 outside their scope",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "409": {
+            "description": "Stale revision, duplicate email or attempted linked-profile email change",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "413": {
+            "description": "Request exceeds 32 KiB",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "503": {
+            "description": "Database unavailable",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me/profile": {
+      "get": {
+        "tags": ["Own profile and clinical care"],
+        "operationId": "get_me_profile",
+        "summary": "Read the session-linked doctor or patient profile",
+        "description": "Requires an active account and valid linked profile. Responses are private, no-store.",
+        "security": [{ "sessionCookie": [] }],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response; private, no-store",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/OwnProfileResponse" }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid identifier, body or query; unsupported fields are rejected",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required or has expired",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden role, inactive account, missing profile, invalid CSRF token or browser origin",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "404": {
+            "description": "Profile or assignment not found; doctors receive 404 outside their scope",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "409": {
+            "description": "Stale revision, duplicate email or attempted linked-profile email change",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "413": {
+            "description": "Request exceeds 32 KiB",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "503": {
+            "description": "Database unavailable",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": ["Own profile and clinical care"],
+        "operationId": "patch_me_profile",
+        "summary": "Update own phone/address (patient)",
+        "description": "Patient only; phone and address exclusively. Null/empty address clears it. Identity, clinical fields, email and references are forbidden. Does not change clinical revision.",
+        "security": [{ "sessionCookie": [], "csrfToken": [] }],
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ContactPatch" },
+              "example": {
+                "phone": "+8801800000000",
+                "address": "Synthetic address"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response; private, no-store",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PatientResponse" }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid identifier, body or query; unsupported fields are rejected",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required or has expired",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden role, inactive account, missing profile, invalid CSRF token or browser origin",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "404": {
+            "description": "Profile or assignment not found; doctors receive 404 outside their scope",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "409": {
+            "description": "Stale revision, duplicate email or attempted linked-profile email change",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "413": {
+            "description": "Request exceeds 32 KiB",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "503": {
+            "description": "Database unavailable",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me/doctors": {
+      "get": {
+        "tags": ["Own profile and clinical care"],
+        "operationId": "get_me_doctors",
+        "summary": "List own linked doctors (patient)",
+        "description": "Newest assignments first with _id tie-breaker. Profile comes exclusively from the session. No notes or account internals.",
+        "security": [{ "sessionCookie": [] }],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": "1",
+              "type": "string",
+              "pattern": "^[1-9]\\d*$"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": "20",
+              "type": "string",
+              "pattern": "^[1-9]\\d*$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response; private, no-store",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LinkedDoctorListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid identifier, body or query; unsupported fields are rejected",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required or has expired",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden role, inactive account, missing profile, invalid CSRF token or browser origin",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "404": {
+            "description": "Profile or assignment not found; doctors receive 404 outside their scope",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "409": {
+            "description": "Stale revision, duplicate email or attempted linked-profile email change",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "413": {
+            "description": "Request exceeds 32 KiB",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "503": {
+            "description": "Database unavailable",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me/patients": {
+      "get": {
+        "tags": ["Own profile and clinical care"],
+        "operationId": "get_me_patients",
+        "summary": "List currently assigned patients (doctor)",
+        "description": "Defaults: page=1, limit=20 (maximum 100), sort=-createdAt. Sort supports createdAt, -createdAt, name, -name with _id in the same direction as a stable tie-breaker. search is a normalized, escaped literal prefix of full fields or word tokens. Exact descriptor filters are normalized. from/to are inclusive YYYY-MM-DD creation dates in Asia/Dhaka using IANA timezone rules. Reversed/invalid ranges and unknown parameters are rejected. Missing pages are empty; totalPages=0 for no matches. Session doctor scope applies to records and totals. doctorId, if supplied, further intersects the session scope and cannot impersonate another doctor.",
+        "security": [{ "sessionCookie": [] }],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": "1",
+              "type": "string",
+              "pattern": "^[1-9]\\d*$"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": "20",
+              "type": "string",
+              "pattern": "^[1-9]\\d*$"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "maxLength": 200 }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": "-createdAt",
+              "type": "string",
+              "enum": ["createdAt", "-createdAt", "name", "-name"]
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" }
+          },
+          {
+            "name": "condition",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "minLength": 1, "maxLength": 2000 }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "unassessed",
+                "under_treatment",
+                "stable",
+                "critical",
+                "recovered"
+              ]
+            }
+          },
+          {
+            "name": "doctorId",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "pattern": "^[a-f\\d]{24}$" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response; private, no-store",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PatientListResponse" }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid identifier, body or query; unsupported fields are rejected",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required or has expired",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden role, inactive account, missing profile, invalid CSRF token or browser origin",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "404": {
+            "description": "Profile or assignment not found; doctors receive 404 outside their scope",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "409": {
+            "description": "Stale revision, duplicate email or attempted linked-profile email change",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "413": {
+            "description": "Request exceeds 32 KiB",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "503": {
+            "description": "Database unavailable",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me/patients/{patientId}": {
+      "get": {
+        "tags": ["Own profile and clinical care"],
+        "operationId": "get_me_patients__patientId_",
+        "summary": "Read an assigned patient (doctor)",
+        "description": "Current assignment required; outside scope returns 404. page/limit paginate safe linkedDoctors (default 20, maximum 100); linkedDoctorsMeta and linkedDoctorCount describe the full list. No notes in this DTO.",
+        "security": [{ "sessionCookie": [] }],
+        "parameters": [
+          {
+            "name": "patientId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "string",
+              "pattern": "^[a-f\\d]{24}$"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": "1",
+              "type": "string",
+              "pattern": "^[1-9]\\d*$"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": "20",
+              "type": "string",
+              "pattern": "^[1-9]\\d*$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response; private, no-store",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PatientDetailResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid identifier, body or query; unsupported fields are rejected",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required or has expired",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden role, inactive account, missing profile, invalid CSRF token or browser origin",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "404": {
+            "description": "Profile or assignment not found; doctors receive 404 outside their scope",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "409": {
+            "description": "Stale revision, duplicate email or attempted linked-profile email change",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "413": {
+            "description": "Request exceeds 32 KiB",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "503": {
+            "description": "Database unavailable",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me/patients/{patientId}/clinical": {
+      "patch": {
+        "tags": ["Own profile and clinical care"],
+        "operationId": "patch_me_patients__patientId__clinical",
+        "summary": "Update shared condition/status (assigned doctor)",
+        "description": "Only condition/status and last-read patient revision. At least one clinical field is required. Empty condition clears it. Increments revision and records the editor/time atomically. Stale revision returns 409. The assignment is guarded by a write inside the transaction, so concurrent unlink/deletion cannot complete a stale authorized update.",
+        "security": [{ "sessionCookie": [], "csrfToken": [] }],
+        "parameters": [
+          {
+            "name": "patientId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "string",
+              "pattern": "^[a-f\\d]{24}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ClinicalPatch" },
+              "example": {
+                "condition": "Routine observation",
+                "status": "stable",
+                "revision": 0
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response; private, no-store",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PatientResponse" }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid identifier, body or query; unsupported fields are rejected",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required or has expired",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden role, inactive account, missing profile, invalid CSRF token or browser origin",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "404": {
+            "description": "Profile or assignment not found; doctors receive 404 outside their scope",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "409": {
+            "description": "Stale revision, duplicate email or attempted linked-profile email change",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "413": {
+            "description": "Request exceeds 32 KiB",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "503": {
+            "description": "Database unavailable",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me/patients/{patientId}/note": {
+      "get": {
+        "tags": ["Own profile and clinical care"],
+        "operationId": "get_me_patients__patientId__note",
+        "summary": "Read own private note (assigned doctor)",
+        "description": "Derives the doctor from the session. An existing assignment without a note returns {note:null,revision:0,updatedAt:null}; after clearing, the revision and timestamp are preserved. Other doctors and patients cannot read it.",
+        "security": [{ "sessionCookie": [] }],
+        "parameters": [
+          {
+            "name": "patientId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "string",
+              "pattern": "^[a-f\\d]{24}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response; private, no-store",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/NoteResponse" }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid identifier, body or query; unsupported fields are rejected",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required or has expired",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden role, inactive account, missing profile, invalid CSRF token or browser origin",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "404": {
+            "description": "Profile or assignment not found; doctors receive 404 outside their scope",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "409": {
+            "description": "Stale revision, duplicate email or attempted linked-profile email change",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "413": {
+            "description": "Request exceeds 32 KiB",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "503": {
+            "description": "Database unavailable",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": ["Own profile and clinical care"],
+        "operationId": "put_me_patients__patientId__note",
+        "summary": "Replace own private note (assigned doctor)",
+        "description": "One trimmed note of 1–20000 characters per association. Supply the last-read note revision, distinct from patient clinical revision. Successful writes increment it. Stale revisions return 409; missing assignment returns 404.",
+        "security": [{ "sessionCookie": [], "csrfToken": [] }],
+        "parameters": [
+          {
+            "name": "patientId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "string",
+              "pattern": "^[a-f\\d]{24}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/NotePut" },
+              "example": { "note": "Synthetic clinical note", "revision": 0 }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response; private, no-store",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/NoteResponse" }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid identifier, body or query; unsupported fields are rejected",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required or has expired",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden role, inactive account, missing profile, invalid CSRF token or browser origin",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "404": {
+            "description": "Profile or assignment not found; doctors receive 404 outside their scope",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "409": {
+            "description": "Stale revision, duplicate email or attempted linked-profile email change",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "413": {
+            "description": "Request exceeds 32 KiB",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "503": {
+            "description": "Database unavailable",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Own profile and clinical care"],
+        "operationId": "delete_me_patients__patientId__note",
+        "summary": "Clear own private note (assigned doctor)",
+        "description": "Requires the last-read note revision in the JSON body. Clears note content but increments/preserves its revision and update timestamp to reject stale writes. Returns 204; GET again to read the new revision. Clearing an already empty note with the current revision succeeds and increments it.",
+        "security": [{ "sessionCookie": [], "csrfToken": [] }],
+        "parameters": [
+          {
+            "name": "patientId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "type": "string",
+              "pattern": "^[a-f\\d]{24}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/NoteDelete" },
+              "example": { "revision": 1 }
+            }
+          }
+        },
+        "responses": {
+          "204": { "description": "Success; empty body" },
+          "400": {
+            "description": "Invalid identifier, body or query; unsupported fields are rejected",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required or has expired",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden role, inactive account, missing profile, invalid CSRF token or browser origin",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "404": {
+            "description": "Profile or assignment not found; doctors receive 404 outside their scope",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "409": {
+            "description": "Stale revision, duplicate email or attempted linked-profile email change",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "413": {
+            "description": "Request exceeds 32 KiB",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "503": {
+            "description": "Database unavailable",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
     "/auth/csrf": {
       "get": {
         "tags": ["Authentication"],
@@ -31,9 +2474,7 @@
             "description": "Session-bound token; private, no-store",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CsrfResponse"
-                }
+                "schema": { "$ref": "#/components/schemas/CsrfResponse" }
               }
             }
           },
@@ -41,9 +2482,7 @@
             "description": "Invalid body, query or identifier",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
+                "schema": { "$ref": "#/components/schemas/Error" }
               }
             }
           },
@@ -51,9 +2490,7 @@
             "description": "Missing, expired or invalid authentication",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
+                "schema": { "$ref": "#/components/schemas/Error" }
               }
             }
           },
@@ -61,9 +2498,7 @@
             "description": "Invalid CSRF token/origin, forbidden role/status or unavailable profile",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
+                "schema": { "$ref": "#/components/schemas/Error" }
               }
             }
           },
@@ -71,9 +2506,7 @@
             "description": "Request exceeds 32 KiB",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
+                "schema": { "$ref": "#/components/schemas/Error" }
               }
             }
           },
@@ -81,9 +2514,7 @@
             "description": "Unexpected server error",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
+                "schema": { "$ref": "#/components/schemas/Error" }
               }
             }
           },
@@ -91,9 +2522,7 @@
             "description": "Database is unavailable",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
+                "schema": { "$ref": "#/components/schemas/Error" }
               }
             }
           }
@@ -105,18 +2534,12 @@
         "tags": ["Authentication"],
         "operationId": "registerAccount",
         "summary": "Submit a pending doctor or patient account",
-        "security": [
-          {
-            "csrfToken": []
-          }
-        ],
+        "security": [{ "csrfToken": [] }],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Registration"
-              }
+              "schema": { "$ref": "#/components/schemas/Registration" }
             }
           }
         },
@@ -126,9 +2549,7 @@
             "description": "Pending account",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CurrentUserResponse"
-                }
+                "schema": { "$ref": "#/components/schemas/CurrentUserResponse" }
               }
             }
           },
@@ -136,9 +2557,7 @@
             "description": "Invalid body, query or identifier",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
+                "schema": { "$ref": "#/components/schemas/Error" }
               }
             }
           },
@@ -146,9 +2565,7 @@
             "description": "Missing, expired or invalid authentication",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
+                "schema": { "$ref": "#/components/schemas/Error" }
               }
             }
           },
@@ -156,9 +2573,7 @@
             "description": "Invalid CSRF token/origin, forbidden role/status or unavailable profile",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
+                "schema": { "$ref": "#/components/schemas/Error" }
               }
             }
           },
@@ -166,9 +2581,7 @@
             "description": "Email is already in use",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
+                "schema": { "$ref": "#/components/schemas/Error" }
               }
             }
           },
@@ -176,9 +2589,7 @@
             "description": "Request exceeds 32 KiB",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
+                "schema": { "$ref": "#/components/schemas/Error" }
               }
             }
           },
@@ -186,18 +2597,13 @@
             "description": "Too many attempts",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
+                "schema": { "$ref": "#/components/schemas/Error" }
               }
             },
             "headers": {
               "Retry-After": {
                 "description": "Seconds until the next fixed window",
-                "schema": {
-                  "type": "integer",
-                  "minimum": 1
-                }
+                "schema": { "type": "integer", "minimum": 1 }
               }
             }
           },
@@ -205,9 +2611,7 @@
             "description": "Unexpected server error",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
+                "schema": { "$ref": "#/components/schemas/Error" }
               }
             }
           },
@@ -215,9 +2619,7 @@
             "description": "Database is unavailable",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
+                "schema": { "$ref": "#/components/schemas/Error" }
               }
             }
           }
@@ -229,18 +2631,12 @@
         "tags": ["Authentication"],
         "operationId": "login",
         "summary": "Authenticate and regenerate the session",
-        "security": [
-          {
-            "csrfToken": []
-          }
-        ],
+        "security": [{ "csrfToken": [] }],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Login"
-              }
+              "schema": { "$ref": "#/components/schemas/Login" }
             }
           }
         },
@@ -250,9 +2646,7 @@
             "description": "Current account and regenerated session cookie",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CurrentUserResponse"
-                }
+                "schema": { "$ref": "#/components/schemas/CurrentUserResponse" }
               }
             }
           },
@@ -260,9 +2654,7 @@
             "description": "Invalid body, query or identifier",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
+                "schema": { "$ref": "#/components/schemas/Error" }
               }
             }
           },
@@ -270,9 +2662,7 @@
             "description": "Missing, expired or invalid authentication",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
+                "schema": { "$ref": "#/components/schemas/Error" }
               }
             }
           },
@@ -280,9 +2670,7 @@
             "description": "Invalid CSRF token/origin, forbidden role/status or unavailable profile",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
+                "schema": { "$ref": "#/components/schemas/Error" }
               }
             }
           },
@@ -290,9 +2678,7 @@
             "description": "Request exceeds 32 KiB",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
+                "schema": { "$ref": "#/components/schemas/Error" }
               }
             }
           },
@@ -300,18 +2686,13 @@
             "description": "Too many attempts",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
+                "schema": { "$ref": "#/components/schemas/Error" }
               }
             },
             "headers": {
               "Retry-After": {
                 "description": "Seconds until the next fixed window",
-                "schema": {
-                  "type": "integer",
-                  "minimum": 1
-                }
+                "schema": { "type": "integer", "minimum": 1 }
               }
             }
           },
@@ -319,9 +2700,7 @@
             "description": "Unexpected server error",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
+                "schema": { "$ref": "#/components/schemas/Error" }
               }
             }
           },
@@ -329,9 +2708,7 @@
             "description": "Database is unavailable",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
+                "schema": { "$ref": "#/components/schemas/Error" }
               }
             }
           }
@@ -343,20 +2720,14 @@
         "tags": ["Authentication"],
         "operationId": "getCurrentUser",
         "summary": "Read current account state",
-        "security": [
-          {
-            "sessionCookie": []
-          }
-        ],
+        "security": [{ "sessionCookie": [] }],
         "description": "Loads current database state. Pending/rejected accounts receive status and, for rejected accounts, the optional reason. Active doctor/patient profiles must exist and match the account email. No password hashes or submitted profile details are returned.",
         "responses": {
           "200": {
             "description": "Current user; private, no-store",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CurrentUserResponse"
-                }
+                "schema": { "$ref": "#/components/schemas/CurrentUserResponse" }
               }
             }
           },
@@ -364,9 +2735,7 @@
             "description": "Invalid body, query or identifier",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
+                "schema": { "$ref": "#/components/schemas/Error" }
               }
             }
           },
@@ -374,9 +2743,7 @@
             "description": "Missing, expired or invalid authentication",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
+                "schema": { "$ref": "#/components/schemas/Error" }
               }
             }
           },
@@ -384,9 +2751,7 @@
             "description": "Invalid CSRF token/origin, forbidden role/status or unavailable profile",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
+                "schema": { "$ref": "#/components/schemas/Error" }
               }
             }
           },
@@ -394,9 +2759,7 @@
             "description": "Request exceeds 32 KiB",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
+                "schema": { "$ref": "#/components/schemas/Error" }
               }
             }
           },
@@ -404,9 +2767,7 @@
             "description": "Unexpected server error",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
+                "schema": { "$ref": "#/components/schemas/Error" }
               }
             }
           },
@@ -414,9 +2775,7 @@
             "description": "Database is unavailable",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
+                "schema": { "$ref": "#/components/schemas/Error" }
               }
             }
           }
@@ -428,19 +2787,12 @@
         "tags": ["Authentication"],
         "operationId": "logout",
         "summary": "Destroy session and clear the matching cookie",
-        "security": [
-          {
-            "sessionCookie": [],
-            "csrfToken": []
-          }
-        ],
+        "security": [{ "sessionCookie": [], "csrfToken": [] }],
         "requestBody": {
           "required": false,
           "content": {
             "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Logout"
-              }
+              "schema": { "$ref": "#/components/schemas/Logout" }
             }
           }
         },
@@ -453,9 +2805,7 @@
             "description": "Invalid body, query or identifier",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
+                "schema": { "$ref": "#/components/schemas/Error" }
               }
             }
           },
@@ -463,9 +2813,7 @@
             "description": "Missing, expired or invalid authentication",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
+                "schema": { "$ref": "#/components/schemas/Error" }
               }
             }
           },
@@ -473,9 +2821,7 @@
             "description": "Invalid CSRF token/origin, forbidden role/status or unavailable profile",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
+                "schema": { "$ref": "#/components/schemas/Error" }
               }
             }
           },
@@ -483,9 +2829,7 @@
             "description": "Request exceeds 32 KiB",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
+                "schema": { "$ref": "#/components/schemas/Error" }
               }
             }
           },
@@ -493,9 +2837,7 @@
             "description": "Unexpected server error",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
+                "schema": { "$ref": "#/components/schemas/Error" }
               }
             }
           },
@@ -503,9 +2845,7 @@
             "description": "Database is unavailable",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
+                "schema": { "$ref": "#/components/schemas/Error" }
               }
             }
           }
@@ -517,11 +2857,7 @@
         "tags": ["Registrations"],
         "operationId": "listRegistrations",
         "summary": "List registration submissions (active admin only)",
-        "security": [
-          {
-            "sessionCookie": []
-          }
-        ],
+        "security": [{ "sessionCookie": [] }],
         "description": "Default sort: createdAt descending, then _id descending. Includes only public registration submissions, including decided submissions. Does not include submitted profile details.",
         "parameters": [
           {
@@ -559,10 +2895,7 @@
             "name": "role",
             "in": "query",
             "required": false,
-            "schema": {
-              "type": "string",
-              "enum": ["doctor", "patient"]
-            }
+            "schema": { "type": "string", "enum": ["doctor", "patient"] }
           }
         ],
         "responses": {
@@ -580,9 +2913,7 @@
             "description": "Invalid body, query or identifier",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
+                "schema": { "$ref": "#/components/schemas/Error" }
               }
             }
           },
@@ -590,9 +2921,7 @@
             "description": "Missing, expired or invalid authentication",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
+                "schema": { "$ref": "#/components/schemas/Error" }
               }
             }
           },
@@ -600,9 +2929,7 @@
             "description": "Invalid CSRF token/origin, forbidden role/status or unavailable profile",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
+                "schema": { "$ref": "#/components/schemas/Error" }
               }
             }
           },
@@ -610,9 +2937,7 @@
             "description": "Request exceeds 32 KiB",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
+                "schema": { "$ref": "#/components/schemas/Error" }
               }
             }
           },
@@ -620,9 +2945,7 @@
             "description": "Unexpected server error",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
+                "schema": { "$ref": "#/components/schemas/Error" }
               }
             }
           },
@@ -630,9 +2953,7 @@
             "description": "Database is unavailable",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
+                "schema": { "$ref": "#/components/schemas/Error" }
               }
             }
           }
@@ -644,11 +2965,7 @@
         "tags": ["Registrations"],
         "operationId": "getRegistration",
         "summary": "Review submitted profile details (active admin only)",
-        "security": [
-          {
-            "sessionCookie": []
-          }
-        ],
+        "security": [{ "sessionCookie": [] }],
         "parameters": [
           {
             "name": "id",
@@ -676,9 +2993,7 @@
             "description": "Invalid body, query or identifier",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
+                "schema": { "$ref": "#/components/schemas/Error" }
               }
             }
           },
@@ -686,9 +3001,7 @@
             "description": "Missing, expired or invalid authentication",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
+                "schema": { "$ref": "#/components/schemas/Error" }
               }
             }
           },
@@ -696,9 +3009,7 @@
             "description": "Invalid CSRF token/origin, forbidden role/status or unavailable profile",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
+                "schema": { "$ref": "#/components/schemas/Error" }
               }
             }
           },
@@ -706,9 +3017,7 @@
             "description": "Registration not found",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
+                "schema": { "$ref": "#/components/schemas/Error" }
               }
             }
           },
@@ -716,9 +3025,7 @@
             "description": "Request exceeds 32 KiB",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
+                "schema": { "$ref": "#/components/schemas/Error" }
               }
             }
           },
@@ -726,9 +3033,7 @@
             "description": "Unexpected server error",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
+                "schema": { "$ref": "#/components/schemas/Error" }
               }
             }
           },
@@ -736,9 +3041,7 @@
             "description": "Database is unavailable",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
+                "schema": { "$ref": "#/components/schemas/Error" }
               }
             }
           }
@@ -750,12 +3053,7 @@
         "tags": ["Registrations"],
         "operationId": "decideRegistration",
         "summary": "Approve or reject a pending registration (active admin only)",
-        "security": [
-          {
-            "sessionCookie": [],
-            "csrfToken": []
-          }
-        ],
+        "security": [{ "sessionCookie": [], "csrfToken": [] }],
         "parameters": [
           {
             "name": "id",
@@ -772,9 +3070,7 @@
           "required": true,
           "content": {
             "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RegistrationDecision"
-              }
+              "schema": { "$ref": "#/components/schemas/RegistrationDecision" }
             }
           }
         },
@@ -794,9 +3090,7 @@
             "description": "Invalid body, query or identifier",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
+                "schema": { "$ref": "#/components/schemas/Error" }
               }
             }
           },
@@ -804,9 +3098,7 @@
             "description": "Missing, expired or invalid authentication",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
+                "schema": { "$ref": "#/components/schemas/Error" }
               }
             }
           },
@@ -814,9 +3106,7 @@
             "description": "Invalid CSRF token/origin, forbidden role/status or unavailable profile",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
+                "schema": { "$ref": "#/components/schemas/Error" }
               }
             }
           },
@@ -824,9 +3114,7 @@
             "description": "Registration not found",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
+                "schema": { "$ref": "#/components/schemas/Error" }
               }
             }
           },
@@ -834,9 +3122,7 @@
             "description": "Registration already decided, profile mismatches/is claimed or a matching profile already exists",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
+                "schema": { "$ref": "#/components/schemas/Error" }
               }
             }
           },
@@ -844,9 +3130,7 @@
             "description": "Request exceeds 32 KiB",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
+                "schema": { "$ref": "#/components/schemas/Error" }
               }
             }
           },
@@ -854,9 +3138,7 @@
             "description": "Unexpected server error",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
+                "schema": { "$ref": "#/components/schemas/Error" }
               }
             }
           },
@@ -864,9 +3146,7 @@
             "description": "Database is unavailable",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
+                "schema": { "$ref": "#/components/schemas/Error" }
               }
             }
           }
@@ -890,17 +3170,1011 @@
       }
     },
     "schemas": {
+      "DoctorCreate": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+          "specialization": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "hospital": { "type": "string", "minLength": 1, "maxLength": 200 },
+          "phone": { "type": "string", "minLength": 1, "maxLength": 32 },
+          "email": {
+            "type": "string",
+            "maxLength": 254,
+            "format": "email",
+            "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+          }
+        },
+        "required": ["name", "specialization", "hospital", "phone", "email"],
+        "additionalProperties": false
+      },
+      "DoctorPatch": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+          "specialization": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "hospital": { "type": "string", "minLength": 1, "maxLength": 200 },
+          "phone": { "type": "string", "minLength": 1, "maxLength": 32 },
+          "email": {
+            "type": "string",
+            "maxLength": 254,
+            "format": "email",
+            "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+          }
+        },
+        "additionalProperties": false
+      },
+      "PatientCreate": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+          "dateOfBirth": { "type": "string" },
+          "gender": {
+            "type": "string",
+            "enum": ["female", "male", "other", "undisclosed"]
+          },
+          "phone": { "type": "string", "minLength": 1, "maxLength": 32 },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 254,
+                "format": "email",
+                "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+              },
+              { "type": "null" }
+            ]
+          },
+          "address": {
+            "anyOf": [
+              { "type": "string", "maxLength": 500 },
+              { "type": "null" }
+            ]
+          },
+          "condition": { "type": "string", "maxLength": 2000 },
+          "status": {
+            "default": "unassessed",
+            "type": "string",
+            "enum": [
+              "unassessed",
+              "under_treatment",
+              "stable",
+              "critical",
+              "recovered"
+            ]
+          },
+          "doctorIds": {
+            "default": [],
+            "maxItems": 100,
+            "type": "array",
+            "items": { "type": "string", "pattern": "^[a-f\\d]{24}$" }
+          }
+        },
+        "required": ["name", "dateOfBirth", "gender", "phone"],
+        "additionalProperties": false
+      },
+      "PatientPatch": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+          "dateOfBirth": { "type": "string" },
+          "gender": {
+            "type": "string",
+            "enum": ["female", "male", "other", "undisclosed"]
+          },
+          "phone": { "type": "string", "minLength": 1, "maxLength": 32 },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 254,
+                "format": "email",
+                "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+              },
+              { "type": "null" }
+            ]
+          },
+          "address": {
+            "anyOf": [
+              { "type": "string", "maxLength": 500 },
+              { "type": "null" }
+            ]
+          },
+          "condition": { "type": "string", "maxLength": 2000 },
+          "status": {
+            "type": "string",
+            "enum": [
+              "unassessed",
+              "under_treatment",
+              "stable",
+              "critical",
+              "recovered"
+            ]
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740990
+          }
+        },
+        "additionalProperties": false
+      },
+      "ClinicalPatch": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "condition": { "type": "string", "maxLength": 2000 },
+          "status": {
+            "type": "string",
+            "enum": [
+              "unassessed",
+              "under_treatment",
+              "stable",
+              "critical",
+              "recovered"
+            ]
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740990
+          }
+        },
+        "required": ["revision"],
+        "additionalProperties": false
+      },
+      "ContactPatch": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "phone": { "type": "string", "minLength": 1, "maxLength": 32 },
+          "address": {
+            "anyOf": [
+              { "type": "string", "maxLength": 500 },
+              { "type": "null" }
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "NotePut": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "note": { "type": "string", "minLength": 1, "maxLength": 20000 },
+          "revision": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740990
+          }
+        },
+        "required": ["note", "revision"],
+        "additionalProperties": false
+      },
+      "NoteDelete": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "revision": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740990
+          }
+        },
+        "required": ["revision"],
+        "additionalProperties": false
+      },
+      "DoctorResponse": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string", "pattern": "^[a-f\\d]{24}$" },
+              "name": { "type": "string" },
+              "specialization": { "type": "string" },
+              "hospital": { "type": "string" },
+              "phone": { "type": "string" },
+              "email": {
+                "type": "string",
+                "format": "email",
+                "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "specialization",
+              "hospital",
+              "phone",
+              "email",
+              "createdAt",
+              "updatedAt"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false
+      },
+      "PatientResponse": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string", "pattern": "^[a-f\\d]{24}$" },
+              "name": { "type": "string" },
+              "dateOfBirth": {
+                "type": "string",
+                "format": "date",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+              },
+              "age": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "gender": {
+                "type": "string",
+                "enum": ["female", "male", "other", "undisclosed"]
+              },
+              "phone": { "type": "string" },
+              "email": {
+                "type": "string",
+                "format": "email",
+                "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+              },
+              "address": { "type": "string" },
+              "condition": { "type": "string" },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "unassessed",
+                  "under_treatment",
+                  "stable",
+                  "critical",
+                  "recovered"
+                ]
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "lastClinicalUpdateAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "dateOfBirth",
+              "age",
+              "gender",
+              "phone",
+              "status",
+              "revision",
+              "createdAt",
+              "updatedAt"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false
+      },
+      "PatientDetailResponse": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string", "pattern": "^[a-f\\d]{24}$" },
+              "name": { "type": "string" },
+              "dateOfBirth": {
+                "type": "string",
+                "format": "date",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+              },
+              "age": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "gender": {
+                "type": "string",
+                "enum": ["female", "male", "other", "undisclosed"]
+              },
+              "phone": { "type": "string" },
+              "email": {
+                "type": "string",
+                "format": "email",
+                "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+              },
+              "address": { "type": "string" },
+              "condition": { "type": "string" },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "unassessed",
+                  "under_treatment",
+                  "stable",
+                  "critical",
+                  "recovered"
+                ]
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "lastClinicalUpdateAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              "linkedDoctors": {
+                "maxItems": 100,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string", "pattern": "^[a-f\\d]{24}$" },
+                    "name": { "type": "string" },
+                    "specialization": { "type": "string" },
+                    "hospital": { "type": "string" },
+                    "phone": { "type": "string" },
+                    "email": {
+                      "type": "string",
+                      "format": "email",
+                      "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                    },
+                    "updatedAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name",
+                    "specialization",
+                    "hospital",
+                    "phone",
+                    "email",
+                    "createdAt",
+                    "updatedAt"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "linkedDoctorCount": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "linkedDoctorsMeta": {
+                "type": "object",
+                "properties": {
+                  "page": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  },
+                  "limit": { "type": "integer", "minimum": 1, "maximum": 100 },
+                  "total": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "totalPages": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": ["page", "limit", "total", "totalPages"],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "dateOfBirth",
+              "age",
+              "gender",
+              "phone",
+              "status",
+              "revision",
+              "createdAt",
+              "updatedAt",
+              "linkedDoctors",
+              "linkedDoctorCount",
+              "linkedDoctorsMeta"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false
+      },
+      "DoctorListResponse": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string", "pattern": "^[a-f\\d]{24}$" },
+                "name": { "type": "string" },
+                "specialization": { "type": "string" },
+                "hospital": { "type": "string" },
+                "phone": { "type": "string" },
+                "email": {
+                  "type": "string",
+                  "format": "email",
+                  "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                },
+                "createdAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                },
+                "updatedAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                },
+                "patientCount": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "specialization",
+                "hospital",
+                "phone",
+                "email",
+                "createdAt",
+                "updatedAt",
+                "patientCount"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "page": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "limit": { "type": "integer", "minimum": 1, "maximum": 100 },
+              "total": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "totalPages": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": ["page", "limit", "total", "totalPages"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["data", "meta"],
+        "additionalProperties": false
+      },
+      "PatientListResponse": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string", "pattern": "^[a-f\\d]{24}$" },
+                "name": { "type": "string" },
+                "dateOfBirth": {
+                  "type": "string",
+                  "format": "date",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                },
+                "age": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "gender": {
+                  "type": "string",
+                  "enum": ["female", "male", "other", "undisclosed"]
+                },
+                "phone": { "type": "string" },
+                "email": {
+                  "type": "string",
+                  "format": "email",
+                  "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                },
+                "address": { "type": "string" },
+                "condition": { "type": "string" },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "unassessed",
+                    "under_treatment",
+                    "stable",
+                    "critical",
+                    "recovered"
+                  ]
+                },
+                "revision": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "lastClinicalUpdateAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                },
+                "createdAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                },
+                "updatedAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "dateOfBirth",
+                "age",
+                "gender",
+                "phone",
+                "status",
+                "revision",
+                "createdAt",
+                "updatedAt"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "page": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "limit": { "type": "integer", "minimum": 1, "maximum": 100 },
+              "total": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "totalPages": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": ["page", "limit", "total", "totalPages"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["data", "meta"],
+        "additionalProperties": false
+      },
+      "LinkedDoctorListResponse": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string", "pattern": "^[a-f\\d]{24}$" },
+                "name": { "type": "string" },
+                "specialization": { "type": "string" },
+                "hospital": { "type": "string" },
+                "phone": { "type": "string" },
+                "email": {
+                  "type": "string",
+                  "format": "email",
+                  "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                },
+                "createdAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                },
+                "updatedAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "specialization",
+                "hospital",
+                "phone",
+                "email",
+                "createdAt",
+                "updatedAt"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "page": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "limit": { "type": "integer", "minimum": 1, "maximum": 100 },
+              "total": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "totalPages": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": ["page", "limit", "total", "totalPages"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["data", "meta"],
+        "additionalProperties": false
+      },
+      "OwnProfileResponse": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": { "type": "string", "pattern": "^[a-f\\d]{24}$" },
+                  "name": { "type": "string" },
+                  "specialization": { "type": "string" },
+                  "hospital": { "type": "string" },
+                  "phone": { "type": "string" },
+                  "email": {
+                    "type": "string",
+                    "format": "email",
+                    "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                  },
+                  "createdAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                  },
+                  "updatedAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "specialization",
+                  "hospital",
+                  "phone",
+                  "email",
+                  "createdAt",
+                  "updatedAt"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "id": { "type": "string", "pattern": "^[a-f\\d]{24}$" },
+                  "name": { "type": "string" },
+                  "dateOfBirth": {
+                    "type": "string",
+                    "format": "date",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                  },
+                  "age": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "gender": {
+                    "type": "string",
+                    "enum": ["female", "male", "other", "undisclosed"]
+                  },
+                  "phone": { "type": "string" },
+                  "email": {
+                    "type": "string",
+                    "format": "email",
+                    "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                  },
+                  "address": { "type": "string" },
+                  "condition": { "type": "string" },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "unassessed",
+                      "under_treatment",
+                      "stable",
+                      "critical",
+                      "recovered"
+                    ]
+                  },
+                  "revision": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "lastClinicalUpdateAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                  },
+                  "createdAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                  },
+                  "updatedAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "dateOfBirth",
+                  "age",
+                  "gender",
+                  "phone",
+                  "status",
+                  "revision",
+                  "createdAt",
+                  "updatedAt"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false
+      },
+      "NoteResponse": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "note": { "type": ["string", "null"] },
+              "revision": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "updatedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                  },
+                  { "type": "null" }
+                ]
+              }
+            },
+            "required": ["note", "revision", "updatedAt"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false
+      },
+      "NoteListResponse": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "note": { "type": ["string", "null"] },
+                "revision": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "updatedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                    },
+                    { "type": "null" }
+                  ]
+                },
+                "doctor": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string", "pattern": "^[a-f\\d]{24}$" },
+                    "name": { "type": "string" },
+                    "specialization": { "type": "string" },
+                    "hospital": { "type": "string" },
+                    "phone": { "type": "string" },
+                    "email": {
+                      "type": "string",
+                      "format": "email",
+                      "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                    },
+                    "updatedAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name",
+                    "specialization",
+                    "hospital",
+                    "phone",
+                    "email",
+                    "createdAt",
+                    "updatedAt"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": ["note", "revision", "updatedAt", "doctor"],
+              "additionalProperties": false
+            }
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "page": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "limit": { "type": "integer", "minimum": 1, "maximum": 100 },
+              "total": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "totalPages": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": ["page", "limit", "total", "totalPages"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["data", "meta"],
+        "additionalProperties": false
+      },
+      "AssignmentResponse": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "doctorId": { "type": "string", "pattern": "^[a-f\\d]{24}$" },
+              "patientId": { "type": "string", "pattern": "^[a-f\\d]{24}$" },
+              "assignedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              }
+            },
+            "required": ["doctorId", "patientId", "assignedAt"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false
+      },
       "Registration": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "oneOf": [
           {
             "type": "object",
             "properties": {
-              "name": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 120
-              },
+              "name": { "type": "string", "minLength": 1, "maxLength": 120 },
               "email": {
                 "type": "string",
                 "maxLength": 254,
@@ -912,10 +4186,7 @@
                 "minLength": 12,
                 "maxLength": 128
               },
-              "role": {
-                "type": "string",
-                "const": "doctor"
-              },
+              "role": { "type": "string", "const": "doctor" },
               "profile": {
                 "type": "object",
                 "properties": {
@@ -929,11 +4200,7 @@
                     "minLength": 1,
                     "maxLength": 200
                   },
-                  "phone": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 32
-                  }
+                  "phone": { "type": "string", "minLength": 1, "maxLength": 32 }
                 },
                 "required": ["specialization", "hospital", "phone"],
                 "additionalProperties": false
@@ -945,11 +4212,7 @@
           {
             "type": "object",
             "properties": {
-              "name": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 120
-              },
+              "name": { "type": "string", "minLength": 1, "maxLength": 120 },
               "email": {
                 "type": "string",
                 "maxLength": 254,
@@ -961,16 +4224,11 @@
                 "minLength": 12,
                 "maxLength": 128
               },
-              "role": {
-                "type": "string",
-                "const": "patient"
-              },
+              "role": { "type": "string", "const": "patient" },
               "profile": {
                 "type": "object",
                 "properties": {
-                  "dateOfBirth": {
-                    "type": "string"
-                  },
+                  "dateOfBirth": { "type": "string" },
                   "gender": {
                     "type": "string",
                     "enum": ["female", "male", "other", "undisclosed"]
@@ -1005,11 +4263,7 @@
             "format": "email",
             "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
           },
-          "password": {
-            "type": "string",
-            "minLength": 12,
-            "maxLength": 128
-          }
+          "password": { "type": "string", "minLength": 12, "maxLength": 128 }
         },
         "required": ["email", "password"],
         "additionalProperties": false
@@ -1027,13 +4281,8 @@
           "data": {
             "type": "object",
             "properties": {
-              "id": {
-                "type": "string",
-                "pattern": "^[a-f\\d]{24}$"
-              },
-              "name": {
-                "type": "string"
-              },
+              "id": { "type": "string", "pattern": "^[a-f\\d]{24}$" },
+              "name": { "type": "string" },
               "email": {
                 "type": "string",
                 "maxLength": 254,
@@ -1050,18 +4299,11 @@
               },
               "profileId": {
                 "anyOf": [
-                  {
-                    "type": "string",
-                    "pattern": "^[a-f\\d]{24}$"
-                  },
-                  {
-                    "type": "null"
-                  }
+                  { "type": "string", "pattern": "^[a-f\\d]{24}$" },
+                  { "type": "null" }
                 ]
               },
-              "rejectionReason": {
-                "type": "string"
-              }
+              "rejectionReason": { "type": "string" }
             },
             "required": ["id", "name", "email", "role", "status", "profileId"],
             "additionalProperties": false
@@ -1077,10 +4319,7 @@
           "data": {
             "type": "object",
             "properties": {
-              "csrfToken": {
-                "type": "string",
-                "pattern": "^[a-f\\d]{64}$"
-              }
+              "csrfToken": { "type": "string", "pattern": "^[a-f\\d]{64}$" }
             },
             "required": ["csrfToken"],
             "additionalProperties": false
@@ -1095,15 +4334,8 @@
           {
             "type": "object",
             "properties": {
-              "decision": {
-                "type": "string",
-                "const": "reject"
-              },
-              "reason": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 1000
-              }
+              "decision": { "type": "string", "const": "reject" },
+              "reason": { "type": "string", "minLength": 1, "maxLength": 1000 }
             },
             "required": ["decision"],
             "additionalProperties": false
@@ -1111,18 +4343,9 @@
           {
             "type": "object",
             "properties": {
-              "decision": {
-                "type": "string",
-                "const": "approve"
-              },
-              "mode": {
-                "type": "string",
-                "const": "link"
-              },
-              "profileId": {
-                "type": "string",
-                "pattern": "^[a-f\\d]{24}$"
-              }
+              "decision": { "type": "string", "const": "approve" },
+              "mode": { "type": "string", "const": "link" },
+              "profileId": { "type": "string", "pattern": "^[a-f\\d]{24}$" }
             },
             "required": ["decision", "mode", "profileId"],
             "additionalProperties": false
@@ -1130,21 +4353,12 @@
           {
             "type": "object",
             "properties": {
-              "decision": {
-                "type": "string",
-                "const": "approve"
-              },
-              "mode": {
-                "type": "string",
-                "const": "create"
-              },
+              "decision": { "type": "string", "const": "approve" },
+              "mode": { "type": "string", "const": "create" },
               "patientClinical": {
                 "type": "object",
                 "properties": {
-                  "condition": {
-                    "type": "string",
-                    "maxLength": 2000
-                  },
+                  "condition": { "type": "string", "maxLength": 2000 },
                   "status": {
                     "type": "string",
                     "enum": [
@@ -1174,41 +4388,26 @@
             "items": {
               "type": "object",
               "properties": {
-                "id": {
-                  "type": "string",
-                  "pattern": "^[a-f\\d]{24}$"
-                },
-                "name": {
-                  "type": "string"
-                },
+                "id": { "type": "string", "pattern": "^[a-f\\d]{24}$" },
+                "name": { "type": "string" },
                 "email": {
                   "type": "string",
                   "maxLength": 254,
                   "format": "email",
                   "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
                 },
-                "role": {
-                  "type": "string",
-                  "enum": ["doctor", "patient"]
-                },
+                "role": { "type": "string", "enum": ["doctor", "patient"] },
                 "status": {
                   "type": "string",
                   "enum": ["pending", "active", "rejected", "disabled"]
                 },
                 "profileId": {
                   "anyOf": [
-                    {
-                      "type": "string",
-                      "pattern": "^[a-f\\d]{24}$"
-                    },
-                    {
-                      "type": "null"
-                    }
+                    { "type": "string", "pattern": "^[a-f\\d]{24}$" },
+                    { "type": "null" }
                   ]
                 },
-                "rejectionReason": {
-                  "type": "string"
-                },
+                "rejectionReason": { "type": "string" },
                 "createdAt": {
                   "type": "string",
                   "format": "date-time",
@@ -1273,41 +4472,26 @@
               {
                 "type": "object",
                 "properties": {
-                  "id": {
-                    "type": "string",
-                    "pattern": "^[a-f\\d]{24}$"
-                  },
-                  "name": {
-                    "type": "string"
-                  },
+                  "id": { "type": "string", "pattern": "^[a-f\\d]{24}$" },
+                  "name": { "type": "string" },
                   "email": {
                     "type": "string",
                     "maxLength": 254,
                     "format": "email",
                     "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
                   },
-                  "role": {
-                    "type": "string",
-                    "const": "doctor"
-                  },
+                  "role": { "type": "string", "const": "doctor" },
                   "status": {
                     "type": "string",
                     "enum": ["pending", "active", "rejected", "disabled"]
                   },
                   "profileId": {
                     "anyOf": [
-                      {
-                        "type": "string",
-                        "pattern": "^[a-f\\d]{24}$"
-                      },
-                      {
-                        "type": "null"
-                      }
+                      { "type": "string", "pattern": "^[a-f\\d]{24}$" },
+                      { "type": "null" }
                     ]
                   },
-                  "rejectionReason": {
-                    "type": "string"
-                  },
+                  "rejectionReason": { "type": "string" },
                   "createdAt": {
                     "type": "string",
                     "format": "date-time",
@@ -1357,41 +4541,26 @@
               {
                 "type": "object",
                 "properties": {
-                  "id": {
-                    "type": "string",
-                    "pattern": "^[a-f\\d]{24}$"
-                  },
-                  "name": {
-                    "type": "string"
-                  },
+                  "id": { "type": "string", "pattern": "^[a-f\\d]{24}$" },
+                  "name": { "type": "string" },
                   "email": {
                     "type": "string",
                     "maxLength": 254,
                     "format": "email",
                     "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
                   },
-                  "role": {
-                    "type": "string",
-                    "const": "patient"
-                  },
+                  "role": { "type": "string", "const": "patient" },
                   "status": {
                     "type": "string",
                     "enum": ["pending", "active", "rejected", "disabled"]
                   },
                   "profileId": {
                     "anyOf": [
-                      {
-                        "type": "string",
-                        "pattern": "^[a-f\\d]{24}$"
-                      },
-                      {
-                        "type": "null"
-                      }
+                      { "type": "string", "pattern": "^[a-f\\d]{24}$" },
+                      { "type": "null" }
                     ]
                   },
-                  "rejectionReason": {
-                    "type": "string"
-                  },
+                  "rejectionReason": { "type": "string" },
                   "createdAt": {
                     "type": "string",
                     "format": "date-time",
@@ -1405,9 +4574,7 @@
                   "profile": {
                     "type": "object",
                     "properties": {
-                      "dateOfBirth": {
-                        "type": "string"
-                      },
+                      "dateOfBirth": { "type": "string" },
                       "gender": {
                         "type": "string",
                         "enum": ["female", "male", "other", "undisclosed"]
@@ -1453,12 +4620,8 @@
           "error": {
             "type": "object",
             "properties": {
-              "code": {
-                "type": "string"
-              },
-              "message": {
-                "type": "string"
-              },
+              "code": { "type": "string" },
+              "message": { "type": "string" },
               "requestId": {
                 "type": "string",
                 "format": "uuid",
@@ -1466,14 +4629,10 @@
               },
               "fieldErrors": {
                 "type": "object",
-                "propertyNames": {
-                  "type": "string"
-                },
+                "propertyNames": { "type": "string" },
                 "additionalProperties": {
                   "type": "array",
-                  "items": {
-                    "type": "string"
-                  }
+                  "items": { "type": "string" }
                 }
               }
             },

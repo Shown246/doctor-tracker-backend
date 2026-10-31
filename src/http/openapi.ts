@@ -14,6 +14,7 @@ import {
   registrationQuerySchema,
 } from '../modules/registrations/registration.schemas.js';
 import { SESSION_COOKIE_NAME } from '../modules/auth/session.js';
+import { managementPaths, managementSchemas } from './management-openapi.js';
 
 const errorSchema = z.strictObject({
   error: z.strictObject({
@@ -71,13 +72,19 @@ export function createOpenApiDocument() {
     openapi: '3.1.0',
     info: {
       title: 'Doctor Tracker API',
-      version: '0.2.0',
+      version: '0.3.0',
       description:
-        'Milestone 2 contract. Management and clinical endpoints will follow. All dates are UTC; birth dates are YYYY-MM-DD.',
+        'Milestone 3 contract: session authentication, registration review, management, assignments, clinical care and private notes. Timestamps are UTC; date-only birth dates and creation-date query parameters use YYYY-MM-DD. Dashboards, filter metadata and interactive documentation follow in milestone 4.',
     },
     servers: [{ url: '/api/v1' }],
-    tags: [{ name: 'Authentication' }, { name: 'Registrations' }],
+    tags: [
+      { name: 'Authentication' },
+      { name: 'Registrations' },
+      { name: 'Management' },
+      { name: 'Own profile and clinical care' },
+    ],
     paths: {
+      ...managementPaths(),
       '/auth/csrf': {
         get: {
           tags: ['Authentication'],
@@ -248,6 +255,12 @@ export function createOpenApiDocument() {
         },
       },
       schemas: {
+        ...Object.fromEntries(
+          Object.entries(managementSchemas).map(([name, schema]) => [
+            name,
+            json(schema),
+          ]),
+        ),
         Registration: json(registrationSchema),
         Login: json(loginSchema),
         Logout: json(logoutSchema),
