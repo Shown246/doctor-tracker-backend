@@ -22,7 +22,7 @@ export async function startServer(source: NodeJS.ProcessEnv = process.env) {
     server = await new Promise<Server>((resolve, reject) => {
       const listening = createServer(app);
       listening.once('error', reject);
-      listening.listen(config.PORT, () => {
+      listening.listen(config.PORT, '0.0.0.0', () => {
         listening.off('error', reject);
         resolve(listening);
       });

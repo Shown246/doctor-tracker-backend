@@ -1,0 +1,30 @@
+# Set secrets in Render. This blueprint neither provisions accounts nor seeds data.
+services:
+  - type: web
+    name: doctor-tracker-backend
+    runtime: node
+    plan: free
+    branch: main
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm start
+    healthCheckPath: /health/ready
+    autoDeployTrigger: off
+    envVars:
+      - key: NODE_VERSION
+        value: 24.18.0
+      - key: NODE_ENV
+        value: production
+      - key: MONGOMS_DISABLE_POSTINSTALL
+        value: 'true'
+      - key: MONGODB_DATABASE
+        value: doctor_tracker_demo
+      - key: MONGODB_URI
+        sync: false
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: FRONTEND_ORIGIN
+        sync: false
+      - key: TRUST_PROXY
+        sync: false
+      - key: LOG_LEVEL
+        value: info

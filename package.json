@@ -1,6 +1,6 @@
 {
   "name": "doctor-tracker-backend",
-  "version": "0.1.0",
+  "version": "1.0.0-rc.1",
   "private": true,
   "overrides": {
     "minimatch": "11.0.3"
@@ -30,7 +30,12 @@
     "db:check": "node --env-file-if-exists=.env --import tsx src/commands/check-database.ts",
     "db:indexes": "node --env-file-if-exists=.env --import tsx src/commands/setup-indexes.ts",
     "admin:create": "node --env-file-if-exists=.env --import tsx src/commands/create-admin.ts",
-    "docs:openapi": "tsx src/commands/generate-openapi.ts"
+    "docs:openapi": "tsx src/commands/generate-openapi.ts",
+    "seed:demo": "node --env-file-if-exists=.env --import tsx src/commands/seed-demo.ts",
+    "seed:performance": "node --env-file-if-exists=.env --import tsx src/commands/seed-performance.ts",
+    "db:explain": "node --env-file-if-exists=.env --import tsx src/commands/explain-queries.ts",
+    "perf:check": "tsx src/commands/check-performance.ts",
+    "smoke:deployment": "node --env-file-if-exists=.env --import tsx src/commands/smoke-deployment.ts"
   },
   "dependencies": {
     "argon2": "0.45.1",

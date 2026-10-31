@@ -15,6 +15,7 @@ import {
 } from '../modules/registrations/registration.schemas.js';
 import { SESSION_COOKIE_NAME } from '../modules/auth/session.js';
 import { managementPaths, managementSchemas } from './management-openapi.js';
+import { dashboardPaths, dashboardSchemas } from './dashboard-openapi.js';
 
 const errorSchema = z.strictObject({
   error: z.strictObject({
@@ -43,6 +44,7 @@ const commonErrors = {
     'Invalid CSRF token/origin, forbidden role/status or unavailable profile',
   ),
   '413': failure('Request exceeds 32 KiB'),
+  '415': failure('Unsupported request encoding or charset'),
   '500': failure('Unexpected server error'),
   '503': failure('Database is unavailable'),
 };
@@ -72,9 +74,9 @@ export function createOpenApiDocument() {
     openapi: '3.1.0',
     info: {
       title: 'Doctor Tracker API',
-      version: '0.3.0',
+      version: '1.0.0-rc.1',
       description:
-        'Milestone 3 contract: session authentication, registration review, management, assignments, clinical care and private notes. Timestamps are UTC; date-only birth dates and creation-date query parameters use YYYY-MM-DD. Dashboards, filter metadata and interactive documentation follow in milestone 4.',
+        'Backend release candidate: sessions, approval, management, assignments, clinical care, private notes, role-scoped analytics and filter metadata. Timestamps are UTC; calendar dates use Asia/Dhaka. Every mutation requires a session-bound CSRF token. All authenticated data and documentation are private, no-store. Public exceptions: health, CSRF bootstrap, registration and login. Pending/rejected sessions may read auth/me and log out but cannot access portal data. Hosted acceptance is required before the v1.0.0 release.',
     },
     servers: [{ url: '/api/v1' }],
     tags: [
@@ -82,9 +84,68 @@ export function createOpenApiDocument() {
       { name: 'Registrations' },
       { name: 'Management' },
       { name: 'Own profile and clinical care' },
+      { name: 'Analytics' },
+      { name: 'Operations' },
     ],
     paths: {
       ...managementPaths(),
+      ...dashboardPaths(),
+      '/health/live': {
+        get: {
+          tags: ['Operations'],
+          operationId: 'getLiveness',
+          summary: 'Public process liveness',
+          servers: [{ url: '/' }],
+          security: [],
+          responses: {
+            '200': response('LivenessResponse', 'Process is alive'),
+          },
+        },
+      },
+      '/health/ready': {
+        get: {
+          tags: ['Operations'],
+          operationId: 'getReadiness',
+          summary: 'Public bounded database readiness',
+          servers: [{ url: '/' }],
+          security: [],
+          responses: {
+            '200': response('ReadinessResponse', 'Database ping succeeded'),
+            '503': failure('Database unavailable'),
+          },
+        },
+      },
+      '/docs': {
+        get: {
+          tags: ['Operations'],
+          operationId: 'getInteractiveDocs',
+          summary: 'Interactive API explorer (active admin only)',
+          security: session,
+          responses: {
+            ...commonErrors,
+            '200': {
+              description: 'Admin-only documentation; private, no-store',
+              content: { 'text/html': { schema: { type: 'string' } } },
+            },
+          },
+        },
+      },
+      '/docs/openapi.json': {
+        get: {
+          tags: ['Operations'],
+          operationId: 'getOpenApiContract',
+          summary: 'Download the runtime OpenAPI contract (active admin only)',
+          security: session,
+          responses: {
+            ...commonErrors,
+            '200': {
+              description:
+                'OpenAPI 3.1 document; same content as the repository artifact',
+              content: { 'application/json': { schema: { type: 'object' } } },
+            },
+          },
+        },
+      },
       '/auth/csrf': {
         get: {
           tags: ['Authentication'],
@@ -256,10 +317,9 @@ export function createOpenApiDocument() {
       },
       schemas: {
         ...Object.fromEntries(
-          Object.entries(managementSchemas).map(([name, schema]) => [
-            name,
-            json(schema),
-          ]),
+          Object.entries({ ...managementSchemas, ...dashboardSchemas }).map(
+            ([name, schema]) => [name, json(schema)],
+          ),
         ),
         Registration: json(registrationSchema),
         Login: json(loginSchema),
@@ -270,6 +330,16 @@ export function createOpenApiDocument() {
         RegistrationListResponse: json(registrationListResponseSchema),
         RegistrationDetailResponse: json(decisionResponseSchema),
         Error: json(errorSchema),
+        LivenessResponse: json(
+          z.strictObject({
+            data: z.strictObject({ status: z.literal('alive') }),
+          }),
+        ),
+        ReadinessResponse: json(
+          z.strictObject({
+            data: z.strictObject({ status: z.literal('ready') }),
+          }),
+        ),
       },
     },
   };

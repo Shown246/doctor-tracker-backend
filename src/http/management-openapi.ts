@@ -60,8 +60,9 @@ const detailSchema = patientResponseSchema.extend({
     totalPages: z.number().int().min(0),
   }),
 });
-const single = (schema: z.ZodType) => z.strictObject({ data: schema });
-const list = (schema: z.ZodType) =>
+const single = <T extends z.ZodType>(schema: T) =>
+  z.strictObject({ data: schema });
+const list = <T extends z.ZodType>(schema: T) =>
   z.strictObject({
     data: z.array(schema),
     meta: z.strictObject({
@@ -129,6 +130,7 @@ const errors = {
     'Stale revision, duplicate email or attempted linked-profile email change',
   ),
   '413': failure('Request exceeds 32 KiB'),
+  '415': failure('Unsupported request encoding or charset'),
   '500': failure('Unexpected server error'),
   '503': failure('Database unavailable'),
 };

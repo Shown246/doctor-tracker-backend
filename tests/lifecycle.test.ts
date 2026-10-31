@@ -147,7 +147,9 @@ describe('server process lifecycle', () => {
 
   it('disconnects MongoDB when the HTTP port is already in use', async () => {
     const occupied = createServer();
-    occupied.listen(0);
+    // Reserve the same IPv4 wildcard as the hosted server. Windows can permit
+    // a separate IPv4 bind when only the default IPv6 listener is occupied.
+    occupied.listen(0, '0.0.0.0');
     await once(occupied, 'listening');
     try {
       const port = (occupied.address() as { port: number }).port;

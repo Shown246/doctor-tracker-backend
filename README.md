@@ -1,6 +1,6 @@
 # Doctor Tracker backend
 
-Standalone Express 5 REST API, built with Node.js 24, TypeScript, Mongoose and Zod. Milestones 1–3 include the foundation, registration and approval, persistent sessions, doctor/patient management, assignments, clinical updates and private notes. The frontend is a separate application and has not been started.
+Standalone Express 5 REST API, built with Node.js 24, TypeScript, Mongoose and Zod. The backend includes registration/approval, persistent sessions, management, assignments, clinical updates/private notes, role-specific dashboards, scoped filters, synthetic seeds and an admin API explorer. Milestone 4 is a local release candidate; hosting, hosted CI and the stable release remain gated. The frontend is a separate application and has not been started.
 
 ## Setup
 
@@ -48,9 +48,11 @@ Sessions use `express-session` and `connect-mongo`, sharing the existing MongoDB
 
 Every mutation requires a session-bound `X-CSRF-Token`, including registration/login/logout. Fetch `GET /api/v1/auth/csrf` first and retain the cookie; fetch a new token after login. Browser `Origin` or `Referer`, when present, must match `FRONTEND_ORIGIN` exactly. Cross-site Fetch Metadata without an allowed origin is rejected. Non-browser clients may omit origin headers but must still use CSRF tokens and cookies. Browser clients use the frontend same-origin proxy; credentialed cross-origin CORS is not enabled.
 
-See [authentication and approval usage](docs/authentication.md) for payloads and cookie-aware examples, and the generated [OpenAPI 3.1 contract](docs/openapi.json). Regenerate it with `npm run docs:openapi` after changing Zod contracts; tests detect drift. Interactive admin-only documentation follows in milestone 4.
+See [authentication and approval usage](docs/authentication.md) for payloads and cookie-aware examples, and the generated [OpenAPI 3.1 contract](docs/openapi.json). Regenerate it with `npm run docs:openapi` after changing Zod contracts; tests detect drift. `/api/v1/docs` serves the active-admin-only API explorer; its assets and `/api/v1/docs/openapi.json` require the same authorization. The current contract is `1.0.0-rc.1`; `v1.0.0` is reserved for the verified hosted release.
 
 See [management and clinical API usage](docs/management-and-clinical.md) for list queries, role permissions, revision checks, private notes, patient self-service and deletion semantics.
+
+See [analytics and filters](docs/analytics.md) for bounded role responses, zero-filled Dhaka date buckets and paginated option lookup. [Synthetic data and performance](docs/data-and-performance.md) covers guarded demo seeds, separate configurable performance fixtures and measured query plans. [Deployment and release](docs/deployment.md) describes the Render blueprint, dedicated Atlas setup, HTTPS acceptance client, restart checks and stable contract publication.
 
 All timestamps are UTC. Birth dates are validated real `YYYY-MM-DD` dates from 1900 through today in `Asia/Dhaka`; age is derived rather than stored. Creation-date filters use inclusive `Asia/Dhaka` calendar boundaries.
 
@@ -65,6 +67,9 @@ All timestamps are UTC. Birth dates are validated real `YYYY-MM-DD` dates from 1
 | `/api/v1/doctors/*`       | Active-admin doctor management and assignments                               |
 | `/api/v1/patients/*`      | Active-admin patient management and private-note review                      |
 | `/api/v1/me/*`            | Session-scoped doctor care and patient profiles/contact details              |
+| `GET /api/v1/dashboard`   | Active account's own role-specific summary and bounded charts                |
+| `GET /api/v1/filters`     | Paginated option lookup; admin/assigned-doctor scope                         |
+| `/api/v1/docs`            | Active-admin-only interactive explorer and runtime contract                  |
 | Other `/api/v1/*` routes  | Unknown routes return `404 NOT_FOUND`                                        |
 
 Single records use `{ data }`. Lists use `{ data, meta: { page, limit, total, totalPages } }`. Errors use `{ error: { code, message, fieldErrors?, requestId } }`. Every response has a generated `X-Request-Id`; incoming IDs are not trusted. Helmet is enabled and JSON bodies are limited to 32 KiB. Malformed JSON returns 400, oversized JSON 413, validation errors 400, duplicate keys 409 and unexpected errors 500. Responses never include stack traces or raw database errors.
@@ -108,7 +113,8 @@ src/
     doctors/ patients/   Profiles, management, scoped reads and clinical writes
     assignments/         Transactional relationships and revision-checked private notes
     profiles/            Doctor/patient self-service routes and controllers
-    dashboards/          Milestone 4 aggregation module boundary
+    dashboards/          Role schemas, calendar buckets, bounded analytics and filter options
+  verification/          Cookie-aware deployment acceptance client
 tests/                   HTTP, configuration, model, database and lifecycle checks
 ```
 
@@ -132,4 +138,8 @@ npm run build
 
 Vitest and Supertest cover foundation behavior, registration injection, all account states, CSRF/origin rejection, cookie policy, absolute/store expiry, process-restart persistence, logout/replay, shared throttling, the management permission matrix, safe projections, combined list filters, Dhaka date boundaries, competing approvals, stale clinical/note edits, simultaneous links and transaction rollback. Deterministic race tests pause writes while unlinking/deletion commits, then verify the resumed write loses access. GitHub Actions runs `npm ci` and the commands above on Node.js 24. CI requires no Atlas credentials.
 
-Work is committed locally on `main`; remote creation and pushing are left to the repository owner. See [milestone 1 validation](docs/milestone-01-validation.md), [milestone 2 validation](docs/milestone-02-validation.md) and [milestone 3 validation](docs/milestone-03-validation.md) for the recorded checks and handoff.
+Milestone 4 adds tests for shared-patient/empty dashboards, daily/monthly range boundaries, bounded summaries, scoped option totals, protected docs/assets, seed idempotency/rollback and the deployment acceptance client against an independent HTTP server. `npm run perf:check` separately creates an isolated 100-doctor/10,000-patient fixture and writes explain metrics plus count checks to `docs/query-plans.json`. It does not load `.env` or touch Atlas. The scoped patient list and option queries start from indexed assignments; the report documents remaining exact-total and page-offset costs.
+
+`npm run seed:demo` requires exact `FIXTURE_DATABASE` matching, `SEED_DEMO=true` and three externally supplied role email/password pairs. `npm run seed:performance` additionally restricts targets to non-production development/test databases; sizes default to 100/10,000. Neither command resets data or runs on startup. See the fixture guide before invoking them. `npm run smoke:deployment` requires an explicitly selected HTTPS demo URL, external admin/fixture credentials and `SMOKE_ALLOW_WRITES=true`; it creates synthetic acceptance records and verifies the hosted workflows without printing secrets.
+
+Work is committed locally on `main`; remote creation and pushing are left to the repository owner. See [milestone 1 validation](docs/milestone-01-validation.md), [milestone 2 validation](docs/milestone-02-validation.md), [milestone 3 validation](docs/milestone-03-validation.md) and the [milestone 4 checklist](docs/milestone-04-backend-completion.md) for recorded results and remaining gate requirements.

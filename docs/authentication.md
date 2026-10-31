@@ -1,6 +1,6 @@
 # Authentication and registration approval
 
-All paths are relative to `/api/v1`. The [OpenAPI 3.1 contract](openapi.json) is generated from the runtime Zod schemas with `npm run docs:openapi`. Authentication and registration review are implemented; portal management endpoints arrive in milestone 3.
+All paths are relative to `/api/v1`. The [OpenAPI 3.1 contract](openapi.json) is generated from the runtime Zod schemas with `npm run docs:openapi`. See [management](management-and-clinical.md), [analytics](analytics.md) and [deployment](deployment.md) for the complete backend workflows.
 
 ## Client session flow
 

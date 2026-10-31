@@ -52,7 +52,7 @@ const dhakaCalendar = new Intl.DateTimeFormat('en-GB', {
   second: '2-digit',
   hourCycle: 'h23',
 });
-function dhakaMidnight(value: string, nextDay = false) {
+export function dhakaMidnight(value: string, nextDay = false) {
   const target = new Date(`${value}T00:00:00Z`);
   if (nextDay) target.setUTCDate(target.getUTCDate() + 1);
   let instant = target.getTime();

@@ -13,6 +13,8 @@ import { doctorRoutes } from './modules/doctors/doctor.routes.js';
 import { patientRoutes } from './modules/patients/patient.routes.js';
 import { assignmentRoutes } from './modules/assignments/assignment.routes.js';
 import { profileRoutes } from './modules/profiles/profile.routes.js';
+import { dashboardRoutes } from './modules/dashboards/dashboard.routes.js';
+import { docsRoutes } from './http/docs.js';
 
 export interface AppDependencies {
   config: Environment;
@@ -49,6 +51,10 @@ export function createApp({
   api.use('/doctors', ...security, doctorRoutes());
   api.use('/patients', ...security, patientRoutes());
   api.use('/me', ...security, profileRoutes());
+  api.use('/dashboard', ...security);
+  api.use('/filters', ...security);
+  api.use(dashboardRoutes());
+  api.use('/docs', ...security, docsRoutes());
   // Doctor/patient prefix routers already establish security for these nested routes.
   api.use(assignmentRoutes());
   app.use('/api/v1', api);

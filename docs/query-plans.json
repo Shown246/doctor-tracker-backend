@@ -1,0 +1,302 @@
+{
+  "generatedAt": "2026-10-31T14:13:02.796Z",
+  "environment": {
+    "node": "24.18.0",
+    "mongoose": "9.11.4",
+    "mongodb": "8.2.6"
+  },
+  "dataset": {
+    "doctors": 100,
+    "patients": 10000,
+    "assignments": 10286
+  },
+  "plans": [
+    {
+      "name": "doctor prefix search",
+      "query": "search=synthetic doctor 00009; newest first; limit=20",
+      "wallTimeMillis": 11.1,
+      "metrics": {
+        "indexes": ["searchKeys_1"],
+        "stages": ["FETCH", "IXSCAN", "PROJECTION_SIMPLE", "SORT"],
+        "cursorDocumentsExamined": 10,
+        "lookupDocumentsExamined": 0,
+        "keysExamined": 11,
+        "executionTimeMillis": 1,
+        "returned": 10
+      }
+    },
+    {
+      "name": "doctor exact filters",
+      "query": "specialization=cardiology;hospital=Synthetic Hospital 1;newest first;limit=20",
+      "wallTimeMillis": 2.57,
+      "metrics": {
+        "indexes": ["hospitalKey_1_createdAt_-1__id_-1"],
+        "stages": ["FETCH", "IXSCAN", "LIMIT", "PROJECTION_SIMPLE"],
+        "cursorDocumentsExamined": 10,
+        "lookupDocumentsExamined": 0,
+        "keysExamined": 10,
+        "executionTimeMillis": 0,
+        "returned": 3
+      }
+    },
+    {
+      "name": "patient prefix search",
+      "query": "search=synthetic patient 00099; newest first; limit=20",
+      "wallTimeMillis": 5.04,
+      "metrics": {
+        "indexes": ["searchKeys_1"],
+        "stages": ["FETCH", "IXSCAN", "PROJECTION_SIMPLE", "SORT"],
+        "cursorDocumentsExamined": 100,
+        "lookupDocumentsExamined": 0,
+        "keysExamined": 101,
+        "executionTimeMillis": 2,
+        "returned": 20
+      }
+    },
+    {
+      "name": "combined exact filters",
+      "query": "{\"condition\":\"Synthetic Condition 1\",\"status\":\"under_treatment\"}",
+      "wallTimeMillis": 9.57,
+      "metrics": {
+        "indexes": ["conditionKey_1_createdAt_-1__id_-1"],
+        "stages": ["FETCH", "IXSCAN", "PROJECTION_SIMPLE"],
+        "cursorDocumentsExamined": 250,
+        "lookupDocumentsExamined": 0,
+        "keysExamined": 250,
+        "executionTimeMillis": 3,
+        "returned": 1
+      }
+    },
+    {
+      "name": "combined prefix and exact filters",
+      "query": "{\"search\":\"synthetic patient 0009\",\"condition\":\"Synthetic Condition 1\",\"status\":\"under_treatment\"}",
+      "wallTimeMillis": 8.91,
+      "metrics": {
+        "indexes": ["conditionKey_1_createdAt_-1__id_-1"],
+        "stages": ["FETCH", "IXSCAN", "PROJECTION_SIMPLE"],
+        "cursorDocumentsExamined": 250,
+        "lookupDocumentsExamined": 0,
+        "keysExamined": 250,
+        "executionTimeMillis": 7,
+        "returned": 1
+      }
+    },
+    {
+      "name": "large page offset",
+      "query": "{\"page\":\"500\"}",
+      "wallTimeMillis": 60.8,
+      "metrics": {
+        "indexes": ["createdAt_-1__id_-1"],
+        "stages": ["FETCH", "IXSCAN", "PROJECTION_SIMPLE"],
+        "cursorDocumentsExamined": 10000,
+        "lookupDocumentsExamined": 0,
+        "keysExamined": 10000,
+        "executionTimeMillis": 59,
+        "returned": 1
+      }
+    },
+    {
+      "name": "doctor-scoped patient page",
+      "query": "session doctor 1; page=1;limit=20;sort=-createdAt; includes count",
+      "wallTimeMillis": 34.89,
+      "metrics": {
+        "indexes": ["_id_", "doctorId_1_patientId_1"],
+        "stages": ["FETCH", "IXSCAN", "PROJECTION_SIMPLE"],
+        "cursorDocumentsExamined": 100,
+        "lookupDocumentsExamined": 101,
+        "keysExamined": 201,
+        "executionTimeMillis": 32,
+        "returned": 1
+      }
+    },
+    {
+      "name": "assignment pair",
+      "query": "doctor 1 / patient 1; exact pair",
+      "wallTimeMillis": 2.44,
+      "metrics": {
+        "indexes": ["doctorId_1_patientId_1"],
+        "stages": ["FETCH", "IXSCAN", "LIMIT", "PROJECTION_SIMPLE"],
+        "cursorDocumentsExamined": 1,
+        "lookupDocumentsExamined": 0,
+        "keysExamined": 1,
+        "executionTimeMillis": 0,
+        "returned": 1
+      }
+    },
+    {
+      "name": "recent doctor assignments",
+      "query": "doctor 1; sort=-assignedAt,-_id; limit=10",
+      "wallTimeMillis": 2.32,
+      "metrics": {
+        "indexes": ["doctorId_1_assignedAt_-1__id_-1"],
+        "stages": ["FETCH", "IXSCAN", "LIMIT", "PROJECTION_SIMPLE"],
+        "cursorDocumentsExamined": 10,
+        "lookupDocumentsExamined": 0,
+        "keysExamined": 10,
+        "executionTimeMillis": 0,
+        "returned": 10
+      }
+    },
+    {
+      "name": "scoped filter metadata",
+      "query": "doctor 1; field=condition; page=1;limit=20",
+      "wallTimeMillis": 42.31,
+      "metrics": {
+        "indexes": ["_id_", "doctorId_1_patientId_1"],
+        "stages": ["FETCH", "IXSCAN", "PROJECTION_SIMPLE"],
+        "cursorDocumentsExamined": 100,
+        "lookupDocumentsExamined": 101,
+        "keysExamined": 201,
+        "executionTimeMillis": 39,
+        "returned": 1
+      }
+    },
+    {
+      "name": "patient creation trend",
+      "query": "2026-10-01 through 2026-10-31; daily Asia/Dhaka",
+      "wallTimeMillis": 7.57,
+      "metrics": {
+        "indexes": ["createdAt_-1__id_-1"],
+        "stages": [
+          "GROUP",
+          "IXSCAN",
+          "PROJECTION_COVERED",
+          "group",
+          "ixseek",
+          "project"
+        ],
+        "cursorDocumentsExamined": 0,
+        "lookupDocumentsExamined": 0,
+        "keysExamined": 868,
+        "executionTimeMillis": 5,
+        "returned": 31
+      }
+    },
+    {
+      "name": "doctor assignment trend",
+      "query": "doctor 1;2026-10-01 through 2026-10-31;daily Asia/Dhaka",
+      "wallTimeMillis": 3.7,
+      "metrics": {
+        "indexes": ["doctorId_1_assignedAt_-1__id_-1"],
+        "stages": [
+          "GROUP",
+          "IXSCAN",
+          "PROJECTION_COVERED",
+          "group",
+          "ixseek",
+          "project"
+        ],
+        "cursorDocumentsExamined": 0,
+        "lookupDocumentsExamined": 0,
+        "keysExamined": 9,
+        "executionTimeMillis": 2,
+        "returned": 6
+      }
+    },
+    {
+      "name": "patient status distribution",
+      "query": "all stored patients; group by status",
+      "wallTimeMillis": 14.97,
+      "metrics": {
+        "indexes": [],
+        "stages": ["COLLSCAN", "GROUP", "group", "project", "scan"],
+        "cursorDocumentsExamined": 10000,
+        "lookupDocumentsExamined": 0,
+        "keysExamined": 0,
+        "executionTimeMillis": 13,
+        "returned": 5
+      }
+    },
+    {
+      "name": "top ten doctors",
+      "query": "current assignment counts; zero-patient doctors included; count desc/id asc; limit=10",
+      "wallTimeMillis": 34.59,
+      "metrics": {
+        "indexes": ["_id_"],
+        "stages": [
+          "COLLSCAN",
+          "GROUP",
+          "PROJECTION_DEFAULT",
+          "group",
+          "project",
+          "scan"
+        ],
+        "cursorDocumentsExamined": 10386,
+        "lookupDocumentsExamined": 10,
+        "keysExamined": 10,
+        "executionTimeMillis": 32,
+        "returned": 10
+      }
+    }
+  ],
+  "countChecks": [
+    {
+      "query": {},
+      "total": 10000,
+      "returned": 20,
+      "passed": true
+    },
+    {
+      "query": {
+        "page": "500"
+      },
+      "total": 10000,
+      "returned": 20,
+      "passed": true
+    },
+    {
+      "query": {
+        "condition": "Synthetic Condition 1",
+        "status": "under_treatment"
+      },
+      "total": 250,
+      "returned": 20,
+      "passed": true
+    },
+    {
+      "query": {
+        "search": "synthetic patient 0009",
+        "condition": "Synthetic Condition 1",
+        "status": "under_treatment"
+      },
+      "total": 25,
+      "returned": 20,
+      "passed": true
+    },
+    {
+      "query": {
+        "page": "501"
+      },
+      "total": 10000,
+      "returned": 0,
+      "passed": true
+    },
+    {
+      "query": {
+        "page": "1",
+        "doctorScope": "synthetic doctor 1"
+      },
+      "total": 100,
+      "returned": 20,
+      "passed": true
+    },
+    {
+      "query": {
+        "page": "5",
+        "doctorScope": "synthetic doctor 1"
+      },
+      "total": 100,
+      "returned": 20,
+      "passed": true
+    },
+    {
+      "query": {
+        "page": "6",
+        "doctorScope": "synthetic doctor 1"
+      },
+      "total": 100,
+      "returned": 0,
+      "passed": true
+    }
+  ]
+}

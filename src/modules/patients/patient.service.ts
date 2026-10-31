@@ -191,6 +191,23 @@ export async function listPatients(
   await assertRole(account, 'admin', 'doctor');
   const doctorId =
     account.role === 'doctor' ? account.profileId : scopedDoctorId;
+  const plan = patientListPlan(query, doctorId ?? undefined);
+  const [result] = await plan.model.aggregate<{
+    records: (InferSchemaType<typeof Patient.schema> & {
+      _id: Types.ObjectId;
+    })[];
+    count: { total: number }[];
+  }>(plan.pipeline);
+  return listResult(
+    (result?.records ?? []).map(patientDto),
+    result?.count[0]?.total ?? 0,
+    query,
+  );
+}
+export function patientListPlan(
+  query: z.infer<typeof patientQuerySchema>,
+  doctorId?: string,
+) {
   const filter = {
     ...listFilter(query),
     ...(query.condition
@@ -198,7 +215,7 @@ export async function listPatients(
       : {}),
     ...(query.status ? { status: query.status } : {}),
   };
-  // Filter by EXISTS in the database rather than loading all assignment IDs.
+  // Start scoped queries at the indexed assignments, then join only those patients.
   const scopes = [
     ...new Set(
       [doctorId, query.doctorId]
@@ -206,11 +223,29 @@ export async function listPatients(
         .map((id) => id.toLowerCase()),
     ),
   ];
-  const pipeline: PipelineStage[] = [
-    { $match: filter },
-    { $sort: listSort(query) },
-  ];
-  for (const scope of scopes)
+  const pipeline: PipelineStage[] = scopes.length
+    ? [
+        { $match: { doctorId: new Types.ObjectId(scopes[0]!) } },
+        { $project: { patientId: 1 } },
+        {
+          $lookup: {
+            from: 'patients',
+            localField: 'patientId',
+            foreignField: '_id',
+            pipeline: [
+              { $match: filter },
+              { $project: { ...patientProjection, nameKey: 1 } },
+            ],
+            as: 'patient',
+          },
+        },
+        { $unwind: '$patient' },
+        { $replaceWith: '$patient' },
+        { $sort: listSort(query) },
+      ]
+    : [{ $match: filter }, { $sort: listSort(query) }];
+  // A supplied doctor filter intersects the authenticated/path doctor scope.
+  for (const scope of scopes.slice(1))
     pipeline.push(
       {
         $lookup: {
@@ -237,17 +272,7 @@ export async function listPatients(
       count: [{ $count: 'total' }],
     },
   });
-  const [result] = await Patient.aggregate<{
-    records: (InferSchemaType<typeof Patient.schema> & {
-      _id: Types.ObjectId;
-    })[];
-    count: { total: number }[];
-  }>(pipeline);
-  return listResult(
-    (result?.records ?? []).map(patientDto),
-    result?.count[0]?.total ?? 0,
-    query,
-  );
+  return { model: scopes.length ? DoctorPatient : Patient, pipeline };
 }
 export async function updateClinical(
   id: string,

@@ -2,15 +2,17 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Doctor Tracker API",
-    "version": "0.3.0",
-    "description": "Milestone 3 contract: session authentication, registration review, management, assignments, clinical care and private notes. Timestamps are UTC; date-only birth dates and creation-date query parameters use YYYY-MM-DD. Dashboards, filter metadata and interactive documentation follow in milestone 4."
+    "version": "1.0.0-rc.1",
+    "description": "Backend release candidate: sessions, approval, management, assignments, clinical care, private notes, role-scoped analytics and filter metadata. Timestamps are UTC; calendar dates use Asia/Dhaka. Every mutation requires a session-bound CSRF token. All authenticated data and documentation are private, no-store. Public exceptions: health, CSRF bootstrap, registration and login. Pending/rejected sessions may read auth/me and log out but cannot access portal data. Hosted acceptance is required before the v1.0.0 release."
   },
   "servers": [{ "url": "/api/v1" }],
   "tags": [
     { "name": "Authentication" },
     { "name": "Registrations" },
     { "name": "Management" },
-    { "name": "Own profile and clinical care" }
+    { "name": "Own profile and clinical care" },
+    { "name": "Analytics" },
+    { "name": "Operations" }
   ],
   "paths": {
     "/doctors": {
@@ -139,6 +141,14 @@
               }
             }
           },
+          "415": {
+            "description": "Unsupported request encoding or charset",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
           "500": {
             "description": "Unexpected server error",
             "content": {
@@ -230,6 +240,14 @@
           },
           "413": {
             "description": "Request exceeds 32 KiB",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported request encoding or charset",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/Error" }
@@ -331,6 +349,14 @@
               }
             }
           },
+          "415": {
+            "description": "Unsupported request encoding or charset",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
           "500": {
             "description": "Unexpected server error",
             "content": {
@@ -426,6 +452,14 @@
           },
           "413": {
             "description": "Request exceeds 32 KiB",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported request encoding or charset",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/Error" }
@@ -592,6 +626,14 @@
               }
             }
           },
+          "415": {
+            "description": "Unsupported request encoding or charset",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
           "500": {
             "description": "Unexpected server error",
             "content": {
@@ -685,6 +727,14 @@
           },
           "413": {
             "description": "Request exceeds 32 KiB",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported request encoding or charset",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/Error" }
@@ -808,6 +858,14 @@
               }
             }
           },
+          "415": {
+            "description": "Unsupported request encoding or charset",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
           "500": {
             "description": "Unexpected server error",
             "content": {
@@ -909,6 +967,14 @@
               }
             }
           },
+          "415": {
+            "description": "Unsupported request encoding or charset",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
           "500": {
             "description": "Unexpected server error",
             "content": {
@@ -989,6 +1055,14 @@
           },
           "413": {
             "description": "Request exceeds 32 KiB",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported request encoding or charset",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/Error" }
@@ -1165,6 +1239,14 @@
               }
             }
           },
+          "415": {
+            "description": "Unsupported request encoding or charset",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
           "500": {
             "description": "Unexpected server error",
             "content": {
@@ -1270,6 +1352,14 @@
               }
             }
           },
+          "415": {
+            "description": "Unsupported request encoding or charset",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
           "500": {
             "description": "Unexpected server error",
             "content": {
@@ -1360,6 +1450,14 @@
           },
           "413": {
             "description": "Request exceeds 32 KiB",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported request encoding or charset",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/Error" }
@@ -1481,6 +1579,14 @@
               }
             }
           },
+          "415": {
+            "description": "Unsupported request encoding or charset",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
           "500": {
             "description": "Unexpected server error",
             "content": {
@@ -1559,6 +1665,14 @@
           },
           "413": {
             "description": "Request exceeds 32 KiB",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported request encoding or charset",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/Error" }
@@ -1653,6 +1767,14 @@
           },
           "413": {
             "description": "Request exceeds 32 KiB",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported request encoding or charset",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/Error" }
@@ -1760,6 +1882,14 @@
           },
           "413": {
             "description": "Request exceeds 32 KiB",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported request encoding or charset",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/Error" }
@@ -1926,6 +2056,14 @@
               }
             }
           },
+          "415": {
+            "description": "Unsupported request encoding or charset",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
           "500": {
             "description": "Unexpected server error",
             "content": {
@@ -2043,6 +2181,14 @@
               }
             }
           },
+          "415": {
+            "description": "Unsupported request encoding or charset",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
           "500": {
             "description": "Unexpected server error",
             "content": {
@@ -2151,6 +2297,14 @@
               }
             }
           },
+          "415": {
+            "description": "Unsupported request encoding or charset",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
           "500": {
             "description": "Unexpected server error",
             "content": {
@@ -2240,6 +2394,14 @@
           },
           "413": {
             "description": "Request exceeds 32 KiB",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported request encoding or charset",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/Error" }
@@ -2348,6 +2510,14 @@
               }
             }
           },
+          "415": {
+            "description": "Unsupported request encoding or charset",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
           "500": {
             "description": "Unexpected server error",
             "content": {
@@ -2443,6 +2613,14 @@
               }
             }
           },
+          "415": {
+            "description": "Unsupported request encoding or charset",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
           "500": {
             "description": "Unexpected server error",
             "content": {
@@ -2453,6 +2631,364 @@
           },
           "503": {
             "description": "Database unavailable",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/dashboard": {
+      "get": {
+        "tags": ["Analytics"],
+        "operationId": "getDashboard",
+        "summary": "Read the active account’s role-specific dashboard",
+        "description": "Identity comes exclusively from the session. from/to are inclusive Asia/Dhaka YYYY-MM-DD dates. to defaults to today; from defaults to 29 calendar days before to. Maximum 365 inclusive calendar days. Daily buckets through 90 days, monthly afterward; month labels use the first day of the month, with partial boundary months counting only the requested dates. Missing buckets and all five statuses are zero-filled. Totals/statuses describe all current records/assignments regardless of range; trends describe stored records/current assignments, not visits or historical assignment snapshots. Admin totals count each patient once; top ten doctors include zero-patient doctors and tie by ID; use GET /doctors for paginated details. Doctor recent assignments are the latest ten, independent of range. Patient response has own clinical fields and at most ten linked-doctor summaries (latest first); use GET /me/doctors for pagination. Date parameters are validated but do not affect the patient response. No private notes are returned.",
+        "security": [{ "sessionCookie": [] }],
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful role-scoped response; private, no-store",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DashboardResponse" }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid query, unknown parameter or date range",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "403": {
+            "description": "Inactive account, unavailable profile or unsupported role/filter",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "503": {
+            "description": "Database unavailable",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/filters": {
+      "get": {
+        "tags": ["Analytics"],
+        "operationId": "getFilterOptions",
+        "summary": "Look up permitted filter values (admin/doctor)",
+        "description": "field defaults to condition. Admins may request specialization, hospital, condition or status. Doctors may request condition/status and only values from their currently assigned patients contribute to records or totals. Patients are forbidden. Values and labels use normalized exact-filter keys; absent/empty fields are omitted. Options are deduplicated and sorted ascending, with escaped literal normalized prefix search. Default page=1 and limit=20, maximum limit=100. Totals count permitted matching unique options, never hidden records. No frequency counts are exposed.",
+        "security": [{ "sessionCookie": [] }],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": "1",
+              "type": "string",
+              "pattern": "^[1-9]\\d*$"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": "20",
+              "type": "string",
+              "pattern": "^[1-9]\\d*$"
+            }
+          },
+          {
+            "name": "field",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": "condition",
+              "type": "string",
+              "enum": ["specialization", "hospital", "condition", "status"]
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "maxLength": 200 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful role-scoped response; private, no-store",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/FilterResponse" }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid query, unknown parameter or date range",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "403": {
+            "description": "Inactive account, unavailable profile or unsupported role/filter",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "503": {
+            "description": "Database unavailable",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health/live": {
+      "get": {
+        "tags": ["Operations"],
+        "operationId": "getLiveness",
+        "summary": "Public process liveness",
+        "servers": [{ "url": "/" }],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Process is alive",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/LivenessResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health/ready": {
+      "get": {
+        "tags": ["Operations"],
+        "operationId": "getReadiness",
+        "summary": "Public bounded database readiness",
+        "servers": [{ "url": "/" }],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Database ping succeeded",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ReadinessResponse" }
+              }
+            }
+          },
+          "503": {
+            "description": "Database unavailable",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/docs": {
+      "get": {
+        "tags": ["Operations"],
+        "operationId": "getInteractiveDocs",
+        "summary": "Interactive API explorer (active admin only)",
+        "security": [{ "sessionCookie": [] }],
+        "responses": {
+          "200": {
+            "description": "Admin-only documentation; private, no-store",
+            "content": { "text/html": { "schema": { "type": "string" } } }
+          },
+          "400": {
+            "description": "Invalid body, query or identifier",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid authentication",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "403": {
+            "description": "Invalid CSRF token/origin, forbidden role/status or unavailable profile",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "413": {
+            "description": "Request exceeds 32 KiB",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported request encoding or charset",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "503": {
+            "description": "Database is unavailable",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/docs/openapi.json": {
+      "get": {
+        "tags": ["Operations"],
+        "operationId": "getOpenApiContract",
+        "summary": "Download the runtime OpenAPI contract (active admin only)",
+        "security": [{ "sessionCookie": [] }],
+        "responses": {
+          "200": {
+            "description": "OpenAPI 3.1 document; same content as the repository artifact",
+            "content": {
+              "application/json": { "schema": { "type": "object" } }
+            }
+          },
+          "400": {
+            "description": "Invalid body, query or identifier",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid authentication",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "403": {
+            "description": "Invalid CSRF token/origin, forbidden role/status or unavailable profile",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "413": {
+            "description": "Request exceeds 32 KiB",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported request encoding or charset",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "503": {
+            "description": "Database is unavailable",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/Error" }
@@ -2504,6 +3040,14 @@
           },
           "413": {
             "description": "Request exceeds 32 KiB",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported request encoding or charset",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/Error" }
@@ -2587,6 +3131,14 @@
           },
           "413": {
             "description": "Request exceeds 32 KiB",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported request encoding or charset",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/Error" }
@@ -2682,6 +3234,14 @@
               }
             }
           },
+          "415": {
+            "description": "Unsupported request encoding or charset",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
           "429": {
             "description": "Too many attempts",
             "content": {
@@ -2763,6 +3323,14 @@
               }
             }
           },
+          "415": {
+            "description": "Unsupported request encoding or charset",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
           "500": {
             "description": "Unexpected server error",
             "content": {
@@ -2827,6 +3395,14 @@
           },
           "413": {
             "description": "Request exceeds 32 KiB",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported request encoding or charset",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/Error" }
@@ -2941,6 +3517,14 @@
               }
             }
           },
+          "415": {
+            "description": "Unsupported request encoding or charset",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
           "500": {
             "description": "Unexpected server error",
             "content": {
@@ -3023,6 +3607,14 @@
           },
           "413": {
             "description": "Request exceeds 32 KiB",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported request encoding or charset",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/Error" }
@@ -3128,6 +3720,14 @@
           },
           "413": {
             "description": "Request exceeds 32 KiB",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported request encoding or charset",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/Error" }
@@ -4168,6 +4768,665 @@
         "required": ["data"],
         "additionalProperties": false
       },
+      "DashboardResponse": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "data": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "role": { "type": "string", "const": "admin" },
+                  "range": {
+                    "type": "object",
+                    "properties": {
+                      "from": {
+                        "type": "string",
+                        "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                      },
+                      "to": {
+                        "type": "string",
+                        "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                      },
+                      "timezone": { "type": "string", "const": "Asia/Dhaka" },
+                      "interval": { "type": "string", "enum": ["day", "month"] }
+                    },
+                    "required": ["from", "to", "timezone", "interval"],
+                    "additionalProperties": false
+                  },
+                  "totalDoctors": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "totalPatients": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "patientsPerDoctor": {
+                    "maxItems": 10,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "doctorId": {
+                          "type": "string",
+                          "pattern": "^[a-f\\d]{24}$"
+                        },
+                        "name": { "type": "string" },
+                        "patientCount": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": ["doctorId", "name", "patientCount"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "doctorCreationTrend": {
+                    "maxItems": 90,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "date": {
+                          "type": "string",
+                          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                        },
+                        "count": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": ["date", "count"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "patientCreationTrend": {
+                    "maxItems": 90,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "date": {
+                          "type": "string",
+                          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                        },
+                        "count": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": ["date", "count"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "patientStatusDistribution": {
+                    "minItems": 5,
+                    "maxItems": 5,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "unassessed",
+                            "under_treatment",
+                            "stable",
+                            "critical",
+                            "recovered"
+                          ]
+                        },
+                        "count": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": ["status", "count"],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "role",
+                  "range",
+                  "totalDoctors",
+                  "totalPatients",
+                  "patientsPerDoctor",
+                  "doctorCreationTrend",
+                  "patientCreationTrend",
+                  "patientStatusDistribution"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "role": { "type": "string", "const": "doctor" },
+                  "range": {
+                    "type": "object",
+                    "properties": {
+                      "from": {
+                        "type": "string",
+                        "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                      },
+                      "to": {
+                        "type": "string",
+                        "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                      },
+                      "timezone": { "type": "string", "const": "Asia/Dhaka" },
+                      "interval": { "type": "string", "enum": ["day", "month"] }
+                    },
+                    "required": ["from", "to", "timezone", "interval"],
+                    "additionalProperties": false
+                  },
+                  "assignedPatientCount": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "patientStatusDistribution": {
+                    "minItems": 5,
+                    "maxItems": 5,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "unassessed",
+                            "under_treatment",
+                            "stable",
+                            "critical",
+                            "recovered"
+                          ]
+                        },
+                        "count": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": ["status", "count"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "recentAssignments": {
+                    "maxItems": 10,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "patientId": {
+                          "type": "string",
+                          "pattern": "^[a-f\\d]{24}$"
+                        },
+                        "name": { "type": "string" },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "unassessed",
+                            "under_treatment",
+                            "stable",
+                            "critical",
+                            "recovered"
+                          ]
+                        },
+                        "assignedAt": {
+                          "type": "string",
+                          "format": "date-time",
+                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                        }
+                      },
+                      "required": ["patientId", "name", "status", "assignedAt"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "assignmentTrend": {
+                    "maxItems": 90,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "date": {
+                          "type": "string",
+                          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                        },
+                        "count": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": ["date", "count"],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "role",
+                  "range",
+                  "assignedPatientCount",
+                  "patientStatusDistribution",
+                  "recentAssignments",
+                  "assignmentTrend"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "role": { "type": "string", "const": "patient" },
+                  "patient": {
+                    "type": "object",
+                    "properties": {
+                      "id": { "type": "string", "pattern": "^[a-f\\d]{24}$" },
+                      "condition": { "type": ["string", "null"] },
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "unassessed",
+                          "under_treatment",
+                          "stable",
+                          "critical",
+                          "recovered"
+                        ]
+                      },
+                      "lastClinicalUpdateAt": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                          },
+                          { "type": "null" }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "condition",
+                      "status",
+                      "lastClinicalUpdateAt"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "linkedDoctorCount": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "linkedDoctors": {
+                    "maxItems": 10,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": { "type": "string", "pattern": "^[a-f\\d]{24}$" },
+                        "name": { "type": "string" },
+                        "specialization": { "type": "string" },
+                        "hospital": { "type": "string" }
+                      },
+                      "required": ["id", "name", "specialization", "hospital"],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "role",
+                  "patient",
+                  "linkedDoctorCount",
+                  "linkedDoctors"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false
+      },
+      "AdminDashboard": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "role": { "type": "string", "const": "admin" },
+          "range": {
+            "type": "object",
+            "properties": {
+              "from": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+              "to": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+              "timezone": { "type": "string", "const": "Asia/Dhaka" },
+              "interval": { "type": "string", "enum": ["day", "month"] }
+            },
+            "required": ["from", "to", "timezone", "interval"],
+            "additionalProperties": false
+          },
+          "totalDoctors": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "totalPatients": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "patientsPerDoctor": {
+            "maxItems": 10,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "doctorId": { "type": "string", "pattern": "^[a-f\\d]{24}$" },
+                "name": { "type": "string" },
+                "patientCount": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": ["doctorId", "name", "patientCount"],
+              "additionalProperties": false
+            }
+          },
+          "doctorCreationTrend": {
+            "maxItems": 90,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "date": {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                },
+                "count": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": ["date", "count"],
+              "additionalProperties": false
+            }
+          },
+          "patientCreationTrend": {
+            "maxItems": 90,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "date": {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                },
+                "count": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": ["date", "count"],
+              "additionalProperties": false
+            }
+          },
+          "patientStatusDistribution": {
+            "minItems": 5,
+            "maxItems": 5,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "unassessed",
+                    "under_treatment",
+                    "stable",
+                    "critical",
+                    "recovered"
+                  ]
+                },
+                "count": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": ["status", "count"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "role",
+          "range",
+          "totalDoctors",
+          "totalPatients",
+          "patientsPerDoctor",
+          "doctorCreationTrend",
+          "patientCreationTrend",
+          "patientStatusDistribution"
+        ],
+        "additionalProperties": false
+      },
+      "DoctorDashboard": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "role": { "type": "string", "const": "doctor" },
+          "range": {
+            "type": "object",
+            "properties": {
+              "from": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+              "to": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+              "timezone": { "type": "string", "const": "Asia/Dhaka" },
+              "interval": { "type": "string", "enum": ["day", "month"] }
+            },
+            "required": ["from", "to", "timezone", "interval"],
+            "additionalProperties": false
+          },
+          "assignedPatientCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "patientStatusDistribution": {
+            "minItems": 5,
+            "maxItems": 5,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "unassessed",
+                    "under_treatment",
+                    "stable",
+                    "critical",
+                    "recovered"
+                  ]
+                },
+                "count": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": ["status", "count"],
+              "additionalProperties": false
+            }
+          },
+          "recentAssignments": {
+            "maxItems": 10,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "patientId": { "type": "string", "pattern": "^[a-f\\d]{24}$" },
+                "name": { "type": "string" },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "unassessed",
+                    "under_treatment",
+                    "stable",
+                    "critical",
+                    "recovered"
+                  ]
+                },
+                "assignedAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                }
+              },
+              "required": ["patientId", "name", "status", "assignedAt"],
+              "additionalProperties": false
+            }
+          },
+          "assignmentTrend": {
+            "maxItems": 90,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "date": {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                },
+                "count": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": ["date", "count"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "role",
+          "range",
+          "assignedPatientCount",
+          "patientStatusDistribution",
+          "recentAssignments",
+          "assignmentTrend"
+        ],
+        "additionalProperties": false
+      },
+      "PatientDashboard": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "role": { "type": "string", "const": "patient" },
+          "patient": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string", "pattern": "^[a-f\\d]{24}$" },
+              "condition": { "type": ["string", "null"] },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "unassessed",
+                  "under_treatment",
+                  "stable",
+                  "critical",
+                  "recovered"
+                ]
+              },
+              "lastClinicalUpdateAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                  },
+                  { "type": "null" }
+                ]
+              }
+            },
+            "required": ["id", "condition", "status", "lastClinicalUpdateAt"],
+            "additionalProperties": false
+          },
+          "linkedDoctorCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "linkedDoctors": {
+            "maxItems": 10,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string", "pattern": "^[a-f\\d]{24}$" },
+                "name": { "type": "string" },
+                "specialization": { "type": "string" },
+                "hospital": { "type": "string" }
+              },
+              "required": ["id", "name", "specialization", "hospital"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["role", "patient", "linkedDoctorCount", "linkedDoctors"],
+        "additionalProperties": false
+      },
+      "FilterResponse": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "data": {
+            "maxItems": 100,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "value": { "type": "string" },
+                "label": { "type": "string" }
+              },
+              "required": ["value", "label"],
+              "additionalProperties": false
+            }
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "page": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "limit": { "type": "integer", "minimum": 1, "maximum": 100 },
+              "total": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "totalPages": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": ["page", "limit", "total", "totalPages"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["data", "meta"],
+        "additionalProperties": false
+      },
       "Registration": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "oneOf": [
@@ -4641,6 +5900,34 @@
           }
         },
         "required": ["error"],
+        "additionalProperties": false
+      },
+      "LivenessResponse": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": { "status": { "type": "string", "const": "alive" } },
+            "required": ["status"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false
+      },
+      "ReadinessResponse": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": { "status": { "type": "string", "const": "ready" } },
+            "required": ["status"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["data"],
         "additionalProperties": false
       }
     }
