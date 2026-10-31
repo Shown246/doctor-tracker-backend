@@ -1,0 +1,57 @@
+{
+  "name": "doctor-tracker-backend",
+  "version": "0.1.0",
+  "private": true,
+  "overrides": {
+    "minimatch": "11.0.3"
+  },
+  "config": {
+    "mongodbMemoryServer": {
+      "version": "8.2.6",
+      "downloadDir": ".cache/mongodb-binaries"
+    }
+  },
+  "description": "Standalone Doctor Tracker REST API",
+  "type": "module",
+  "engines": {
+    "node": ">=24 <25",
+    "npm": ">=11 <12"
+  },
+  "scripts": {
+    "dev": "node --env-file-if-exists=.env --import tsx --watch src/server.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node --env-file-if-exists=.env dist/server.js",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint . --max-warnings=0",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "db:check": "node --env-file-if-exists=.env --import tsx src/commands/check-database.ts",
+    "db:indexes": "node --env-file-if-exists=.env --import tsx src/commands/setup-indexes.ts",
+    "admin:create": "node --env-file-if-exists=.env --import tsx src/commands/create-admin.ts"
+  },
+  "dependencies": {
+    "argon2": "0.45.1",
+    "express": "5.3.0",
+    "helmet": "8.3.0",
+    "mongoose": "9.11.4",
+    "pino": "10.4.0",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@types/express": "5.0.6",
+    "@types/node": "24.19.2",
+    "@types/supertest": "7.2.1",
+    "eslint": "10.14.0",
+    "eslint-config-prettier": "10.1.8",
+    "mongodb-memory-server": "11.3.0",
+    "prettier": "3.9.10",
+    "supertest": "7.3.1",
+    "tsx": "4.23.15",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.72.1",
+    "vitest": "5.0.5"
+  }
+}
