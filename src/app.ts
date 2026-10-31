@@ -6,6 +6,9 @@ import { sendData } from './http/responses.js';
 import type { Logger } from './logging/logger.js';
 import { errorHandler, notFound } from './middleware/error-handler.js';
 import { requestContext } from './middleware/request-context.js';
+import { sessionSecurity } from './modules/auth/session.js';
+import { authRoutes } from './modules/auth/auth.routes.js';
+import { registrationRoutes } from './modules/registrations/registration.routes.js';
 
 export interface AppDependencies {
   config: Environment;
@@ -36,7 +39,9 @@ export function createApp({
   });
 
   const api = Router();
-  // Feature routers are added here as their milestones are implemented.
+  const security = sessionSecurity(config);
+  api.use('/auth', ...security, authRoutes(config));
+  api.use('/registrations', ...security, registrationRoutes());
   app.use('/api/v1', api);
   app.use(notFound);
   app.use(errorHandler(logger));

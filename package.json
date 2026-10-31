@@ -29,11 +29,14 @@
     "test:watch": "vitest",
     "db:check": "node --env-file-if-exists=.env --import tsx src/commands/check-database.ts",
     "db:indexes": "node --env-file-if-exists=.env --import tsx src/commands/setup-indexes.ts",
-    "admin:create": "node --env-file-if-exists=.env --import tsx src/commands/create-admin.ts"
+    "admin:create": "node --env-file-if-exists=.env --import tsx src/commands/create-admin.ts",
+    "docs:openapi": "tsx src/commands/generate-openapi.ts"
   },
   "dependencies": {
     "argon2": "0.45.1",
+    "connect-mongo": "6.0.0",
     "express": "5.3.0",
+    "express-session": "1.19.0",
     "helmet": "8.3.0",
     "mongoose": "9.11.4",
     "pino": "10.4.0",
@@ -42,6 +45,7 @@
   "devDependencies": {
     "@eslint/js": "10.0.1",
     "@types/express": "5.0.6",
+    "@types/express-session": "1.19.0",
     "@types/node": "24.19.2",
     "@types/supertest": "7.2.1",
     "eslint": "10.14.0",

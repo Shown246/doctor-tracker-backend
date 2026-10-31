@@ -1,1 +1,0 @@
-Registration review routes, validation, controllers, and services will be implemented in milestone 2. Pending submission data lives in the auth user model; unapproved submissions have no active profile.

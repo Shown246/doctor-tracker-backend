@@ -101,7 +101,7 @@ export type Environment = ReturnType<typeof parseEnvironment>;
 export const SESSION_LIFETIME_MS = 8 * 60 * 60 * 1000;
 export const DATE_FILTER_TIMEZONE = 'Asia/Dhaka';
 
-// Used by the session middleware in milestone 2. No domain means host-only.
+// No domain means host-only.
 export function sessionCookieOptions(mode: Environment['NODE_ENV']) {
   return {
     httpOnly: true,

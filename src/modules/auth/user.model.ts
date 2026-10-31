@@ -144,6 +144,7 @@ userSchema.index(
 );
 userSchema.index({ createdAt: -1, _id: -1 });
 userSchema.index({ status: 1, createdAt: -1, _id: -1 });
+userSchema.index({ role: 1, status: 1, createdAt: -1, _id: -1 });
 requireDocumentWrites(userSchema);
 
 export const User = model('User', userSchema);
