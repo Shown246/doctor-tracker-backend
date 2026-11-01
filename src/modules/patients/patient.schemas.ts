@@ -23,10 +23,6 @@ const patientFields = {
   condition: clinicalFields.condition.optional(),
   status: clinicalFields.status.default('unassessed'),
 };
-export const patientCreateSchema = z.strictObject({
-  ...patientFields,
-  doctorIds: z.array(objectIdSchema).max(100).default([]),
-});
 export const patientPatchSchema = z
   .strictObject({
     ...patientFields,

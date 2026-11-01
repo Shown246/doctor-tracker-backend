@@ -2,29 +2,14 @@ import type { RequestHandler } from 'express';
 import { objectIdSchema } from '../auth/auth.schemas.js';
 import { sendData } from '../../http/responses.js';
 import { paginationSchema } from '../../http/list-query.js';
+import { patientPatchSchema, patientQuerySchema } from './patient.schemas.js';
 import {
-  patientCreateSchema,
-  patientPatchSchema,
-  patientQuerySchema,
-} from './patient.schemas.js';
-import {
-  createPatient,
   deletePatient,
   editPatient,
   listPatients,
   patientDetail,
 } from './patient.service.js';
 
-export const create: RequestHandler = async (request, response) => {
-  sendData(
-    response,
-    await createPatient(
-      patientCreateSchema.parse(request.body),
-      request.account!,
-    ),
-    201,
-  );
-};
 export const detail: RequestHandler = async (request, response) => {
   const id = objectIdSchema.parse(request.params.id);
   const query = paginationSchema.parse(request.query);

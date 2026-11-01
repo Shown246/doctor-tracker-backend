@@ -30,6 +30,7 @@
     "db:check": "node --env-file-if-exists=.env --import tsx src/commands/check-database.ts",
     "db:indexes": "node --env-file-if-exists=.env --import tsx src/commands/setup-indexes.ts",
     "admin:create": "node --env-file-if-exists=.env --import tsx src/commands/create-admin.ts",
+    "patients:activate": "node --env-file-if-exists=.env --import tsx src/commands/activate-patients.ts",
     "docs:openapi": "tsx src/commands/generate-openapi.ts",
     "seed:demo": "node --env-file-if-exists=.env --import tsx src/commands/seed-demo.ts",
     "seed:performance": "node --env-file-if-exists=.env --import tsx src/commands/seed-performance.ts",

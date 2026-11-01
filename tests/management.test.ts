@@ -275,68 +275,68 @@ describe('admin doctor management', () => {
 });
 
 describe('admin patient management', () => {
-  it('atomically creates zero, one and multiple deduplicated assignments', async () => {
+  it('rejects admin patient creation without creating profiles or assignments', async () => {
     const admin = await login('admin');
+    const doctor = await Doctor.create(doctorInput);
+    await admin.agent
+      .post('/api/v1/patients')
+      .set('X-CSRF-Token', admin.token)
+      .send({ ...patientInput, doctorIds: [doctor.id] })
+      .expect(404);
+    expect(await Patient.countDocuments()).toBe(0);
+    expect(await DoctorPatient.countDocuments()).toBe(0);
+  });
+  it('finds a registered patient by phone or email and preserves multiple doctor links', async () => {
+    const admin = await login('admin');
+    const patient = await login('patient');
     const a = await Doctor.create(doctorInput);
     const b = await Doctor.create({
       ...doctorInput,
       email: 'second@example.test',
     });
-    for (const doctorIds of [[], [a.id], [a.id, b.id, a.id.toUpperCase()]]) {
+    for (const search of [
+      patient.profile!.get('phone'),
+      'PATIENT@EXAMPLE.TEST',
+    ]) {
       const result = await admin.agent
-        .post('/api/v1/patients')
-        .set('X-CSRF-Token', admin.token)
-        .send({ ...patientInput, doctorIds })
-        .expect(201);
+        .get('/api/v1/patients')
+        .query({ search })
+        .expect(200);
       expect(
-        await DoctorPatient.countDocuments({ patientId: result.body.data.id }),
-      ).toBe(new Set(doctorIds.map((id) => id.toLowerCase())).size);
+        result.body.data.map((record: { id: string }) => record.id),
+      ).toContain(patient.id);
     }
-    await admin.agent
-      .post('/api/v1/patients')
-      .set('X-CSRF-Token', admin.token)
-      .send({ ...patientInput, doctorIds: [a.id, missing()] })
-      .expect(404);
-    expect(await Patient.countDocuments()).toBe(3);
-    const spy = vi
-      .spyOn(DoctorPatient.prototype, 'save')
-      .mockRejectedValueOnce(new Error('synthetic failure'));
-    await admin.agent
-      .post('/api/v1/patients')
-      .set('X-CSRF-Token', admin.token)
-      .send({ ...patientInput, doctorIds: [a.id] })
-      .expect(500);
-    spy.mockRestore();
-    expect(await Patient.countDocuments()).toBe(3);
-    expect(await DoctorPatient.countDocuments()).toBe(3);
+    for (const doctorId of [a.id, b.id, a.id]) {
+      await admin.agent
+        .put(`/api/v1/doctors/${doctorId}/patients/${patient.id}`)
+        .set('X-CSRF-Token', admin.token)
+        .expect(200);
+    }
+    expect(await DoctorPatient.countDocuments({ patientId: patient.id })).toBe(
+      2,
+    );
   });
   it('validates demographics, optional emails and strict editable fields', async () => {
     const admin = await login('admin');
+    const created = await Patient.create({
+      ...patientInput,
+      email: ' OPTIONAL@EXAMPLE.TEST ',
+    });
+    const id = created.id as string;
     for (const extra of [
       { dateOfBirth: '2025-02-29' },
       { dateOfBirth: '2999-01-01' },
       { gender: 'invalid' },
-      { status: 'invalid' },
+      { status: 'invalid', revision: 0 },
       { email: 'bad' },
       { doctorIds: ['bad'] },
       { revision: 99 },
     ])
       await admin.agent
-        .post('/api/v1/patients')
+        .patch(`/api/v1/patients/${id}`)
         .set('X-CSRF-Token', admin.token)
-        .send({ ...patientInput, ...extra })
+        .send(extra)
         .expect(400);
-    const created = await admin.agent
-      .post('/api/v1/patients')
-      .set('X-CSRF-Token', admin.token)
-      .send({ ...patientInput, email: ' OPTIONAL@EXAMPLE.TEST ' })
-      .expect(201);
-    const id = created.body.data.id as string;
-    await admin.agent
-      .post('/api/v1/patients')
-      .set('X-CSRF-Token', admin.token)
-      .send({ ...patientInput, email: 'optional@example.test' })
-      .expect(409);
     for (const body of [
       {},
       { doctorIds: [] },
@@ -1043,7 +1043,6 @@ describe('management permission matrix', () => {
         ['get', `/doctors/${doctor.id}`],
         ['patch', `/doctors/${doctor.id}`, { hospital: 'Edited' }],
         ['get', '/patients'],
-        ['post', '/patients', patientInput],
         ['get', `/patients/${patient.id}`],
         ['patch', `/patients/${patient.id}`, { name: 'Edited' }],
         ['get', `/doctors/${doctor.id}/patients`],

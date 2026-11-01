@@ -8,7 +8,6 @@ import {
 import {
   clinicalPatchSchema,
   contactPatchSchema,
-  patientCreateSchema,
   patientPatchSchema,
   patientQuerySchema,
 } from '../modules/patients/patient.schemas.js';
@@ -75,7 +74,6 @@ const list = <T extends z.ZodType>(schema: T) =>
 export const managementSchemas = {
   DoctorCreate: doctorCreateSchema,
   DoctorPatch: doctorPatchSchema,
-  PatientCreate: patientCreateSchema,
   PatientPatch: patientPatchSchema,
   ClinicalPatch: clinicalPatchSchema,
   ContactPatch: contactPatchSchema,
@@ -254,26 +252,6 @@ export function managementPaths() {
         'List patients (admin)',
         'PatientListResponse',
         { query: patientQuerySchema, description: listDescription },
-      ),
-      post: operation(
-        'post',
-        '/patients',
-        'Create a patient and optional initial assignments (admin)',
-        'PatientResponse',
-        {
-          body: 'PatientCreate',
-          example: {
-            name: 'Example Patient',
-            dateOfBirth: '1995-02-28',
-            gender: 'undisclosed',
-            phone: '+8801800000000',
-            condition: 'Routine observation',
-            status: 'unassessed',
-            doctorIds: [],
-          },
-          description:
-            'Creates the patient and all initial assignments atomically. doctorIds accepts at most 100 IDs and is deduplicated case-insensitively. Missing doctors abort the transaction. Email is optional and unique when present; null omits it. Empty/null address and empty condition are stored as absent. Birth dates must be real dates from 1900 through today in Asia/Dhaka. Age is derived.',
-        },
       ),
     },
     '/patients/{id}': {

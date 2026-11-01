@@ -38,6 +38,7 @@ import {
   SESSION_COOKIE_NAME,
 } from '../src/modules/auth/session.js';
 import { validEnvironment, doctorInput, patientInput } from './fixtures.js';
+import { activatePendingPatient } from '../src/modules/auth/activate-patients.js';
 import { AUTH_LIMITS } from '../src/modules/auth/throttle.js';
 
 const logger = createLogger('silent');
@@ -161,7 +162,7 @@ const approvePatient = {
 
 describe('public registration and strict contracts', () => {
   it.each(['doctor', 'patient'] as const)(
-    'keeps %s registration pending, hashes passwords and creates no profile',
+    'registers %s with the correct approval status and profile',
     async (role) => {
       const agent = request.agent(app);
       const token = await csrf(agent);
@@ -173,20 +174,37 @@ describe('public registration and strict contracts', () => {
         .expect(201);
       expect(result.body.data).toMatchObject({
         role,
-        status: 'pending',
+        status: role === 'patient' ? 'active' : 'pending',
         email: input.email,
-        profileId: null,
+        profileId: role === 'patient' ? expect.any(String) : null,
       });
       expect(Object.keys(result.body.data).sort()).toEqual(
         ['id', 'name', 'email', 'role', 'status', 'profileId'].sort(),
       );
       expect(await Doctor.countDocuments()).toBe(0);
-      expect(await Patient.countDocuments()).toBe(0);
+      expect(await Patient.countDocuments()).toBe(role === 'patient' ? 1 : 0);
       const user = await User.findById(result.body.data.id).select(
         '+passwordHash +pendingRegistration',
       );
       expect(await verifyPassword(user!.passwordHash, password)).toBe(true);
-      expect(user!.pendingRegistration?.[role]).toBeTruthy();
+      if (role === 'doctor')
+        expect(user!.pendingRegistration?.doctor).toBeTruthy();
+      else {
+        expect(user!.pendingRegistration).toBeUndefined();
+        expect(await Patient.findById(user!.patientId).lean()).toMatchObject({
+          name: input.name,
+          email: input.email,
+          ...input.profile,
+          status: 'unassessed',
+        });
+        const client = await loginAs(user!);
+        await client.agent.get('/api/v1/me/profile').expect(200);
+        const admin = await adminSession();
+        const reviews = await admin.agent
+          .get('/api/v1/registrations')
+          .expect(200);
+        expect(reviews.body.meta.total).toBe(0);
+      }
       await agent.get('/api/v1/auth/me').expect(401); // Registration does not log in.
       await agent
         .post('/api/v1/auth/register')
@@ -195,6 +213,64 @@ describe('public registration and strict contracts', () => {
         .expect(409);
     },
   );
+
+  it('rolls back the patient profile when the account email is already taken', async () => {
+    await pending('doctor', patientSubmission.email);
+    const agent = request.agent(app);
+    const token = await csrf(agent);
+    await agent
+      .post('/api/v1/auth/register')
+      .set('X-CSRF-Token', token)
+      .send(patientSubmission)
+      .expect(409);
+    expect(await Patient.countDocuments()).toBe(0);
+    expect(await User.countDocuments()).toBe(1);
+  });
+
+  it('does not claim an existing patient profile by registering its email', async () => {
+    const profile = await Patient.create({
+      ...patientInput,
+      email: patientSubmission.email,
+    });
+    const agent = request.agent(app);
+    const token = await csrf(agent);
+    await agent
+      .post('/api/v1/auth/register')
+      .set('X-CSRF-Token', token)
+      .send(patientSubmission)
+      .expect(409);
+    expect(await Patient.countDocuments()).toBe(1);
+    expect(await User.countDocuments()).toBe(0);
+    expect((await Patient.findById(profile.id))!.name).toBe(profile.name);
+  });
+
+  it('activates existing pending patients once and preserves other account states', async () => {
+    const patient = await pending('patient');
+    const doctor = await pending();
+    const rejected = await pending('patient', 'rejected@example.test');
+    rejected.status = 'rejected';
+    await rejected.save();
+    expect(await activatePendingPatient(patient.id)).toBe(true);
+    expect(await activatePendingPatient(patient.id)).toBe(false);
+    expect(await activatePendingPatient(doctor.id)).toBe(false);
+    expect(await activatePendingPatient(rejected.id)).toBe(false);
+    const user = await User.findById(patient.id).select('+pendingRegistration');
+    expect(user!.status).toBe('active');
+    expect(user!.pendingRegistration).toBeUndefined();
+    expect(await Patient.countDocuments()).toBe(1);
+    const client = await loginAs(user!);
+    await client.agent.get('/api/v1/me/profile').expect(200);
+  });
+
+  it('leaves an existing pending patient unchanged if profile creation fails', async () => {
+    const patient = await pending('patient');
+    await Patient.create({ ...patientInput, email: patient.email });
+    await expect(activatePendingPatient(patient.id)).rejects.toThrow();
+    const user = await User.findById(patient.id).select('+pendingRegistration');
+    expect(user!.status).toBe('pending');
+    expect(user!.patientId).toBeUndefined();
+    expect(user!.pendingRegistration?.patient).toBeTruthy();
+  });
 
   it.each([
     { role: 'admin' },

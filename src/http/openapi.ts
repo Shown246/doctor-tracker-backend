@@ -167,14 +167,18 @@ export function createOpenApiDocument() {
         post: {
           tags: ['Authentication'],
           operationId: 'registerAccount',
-          summary: 'Submit a pending doctor or patient account',
+          summary:
+            'Register an active patient account or submit a doctor account for approval',
           security: csrfOnly,
           requestBody: body('Registration'),
           description:
-            'Does not log in or create a profile. Requires a previously established CSRF session. Only doctor/patient roles and the listed fields are accepted. Ten attempts per IP per fixed one-hour window.',
+            'Patients receive an active account and linked unassessed patient profile immediately. Doctors receive a pending account without a profile and require admin approval. Does not log in. Existing profile emails are not automatically linked. Requires a previously established CSRF session. Only doctor/patient roles and the listed fields are accepted. Ten attempts per IP per fixed one-hour window.',
           responses: {
             ...commonErrors,
-            '201': response('CurrentUserResponse', 'Pending account'),
+            '201': response(
+              'CurrentUserResponse',
+              'Active patient or pending doctor account',
+            ),
             '409': failure('Email is already in use'),
             '429': throttled,
           },

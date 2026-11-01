@@ -1,9 +1,11 @@
 import { randomBytes } from 'node:crypto';
+import mongoose from 'mongoose';
 import { ApiError } from '../../errors/api-error.js';
 import { currentUserSchema } from './auth.schemas.js';
 import type { RegistrationInput } from './auth.schemas.js';
 import { hashPassword, verifyPassword } from './password.js';
 import { User } from './user.model.js';
+import { Patient } from '../patients/patient.model.js';
 
 export const currentUserProjection = {
   name: 1,
@@ -35,6 +37,28 @@ export async function findCurrentUser(id: string) {
 
 export async function register(input: RegistrationInput) {
   const passwordHash = await hashPassword(input.password);
+  if (input.role === 'patient') {
+    const id = await mongoose.connection.transaction(async (session) => {
+      const patient = new Patient({
+        name: input.name,
+        email: input.email,
+        ...input.profile,
+        status: 'unassessed',
+      });
+      await patient.save({ session });
+      const user = new User({
+        name: input.name,
+        email: input.email,
+        passwordHash,
+        role: 'patient',
+        status: 'active',
+        patientId: patient._id,
+      });
+      await user.save({ session });
+      return user.id;
+    });
+    return (await findCurrentUser(id))!;
+  }
   const user = await User.create({
     name: input.name,
     email: input.email,

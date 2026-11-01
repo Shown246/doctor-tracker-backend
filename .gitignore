@@ -10,3 +10,5 @@ logs/
 .mongodb-binaries/
 .DS_Store
 Thumbs.db
+IMPLEMENTATION_PLAN.md
+Fullstack_Task.md

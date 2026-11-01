@@ -12,7 +12,7 @@ import {
 } from '../../http/dtos.js';
 import { listFilter, listResult, listSort } from '../../http/list-query.js';
 import { DoctorPatient } from '../assignments/doctor-patient.model.js';
-import { Doctor } from '../doctors/doctor.model.js';
+import type { Doctor } from '../doctors/doctor.model.js';
 import { User } from '../auth/user.model.js';
 import { assertActiveAccount, assertRole } from '../auth/access.js';
 import type { CurrentUser } from '../auth/auth.schemas.js';
@@ -20,7 +20,6 @@ import { Patient } from './patient.model.js';
 import type {
   clinicalPatchSchema,
   contactPatchSchema,
-  patientCreateSchema,
   patientPatchSchema,
   patientQuerySchema,
 } from './patient.schemas.js';
@@ -41,37 +40,6 @@ export async function lockPatient(id: string, session: ClientSession) {
   await patient.save({ session });
   return patient;
 }
-export async function createPatient(
-  input: z.infer<typeof patientCreateSchema>,
-  account: CurrentUser,
-) {
-  await assertRole(account, 'admin');
-  return transaction(async (session) => {
-    const ids = [...new Set(input.doctorIds.map((id) => id.toLowerCase()))];
-    if (
-      (await Doctor.countDocuments({ _id: { $in: ids } }).session(session)) !==
-      ids.length
-    )
-      throw new ApiError(404, 'NOT_FOUND', 'An initial doctor was not found');
-    const patient = new Patient({
-      name: input.name,
-      dateOfBirth: input.dateOfBirth,
-      gender: input.gender,
-      phone: input.phone,
-      status: input.status,
-      email: input.email || undefined,
-      address: input.address || undefined,
-      condition: input.condition || undefined,
-    });
-    await patient.save({ session });
-    for (const doctorId of ids)
-      await new DoctorPatient({ doctorId, patientId: patient._id }).save({
-        session,
-      });
-    return patientDto(patient);
-  });
-}
-
 async function linkedDoctorList(
   patientId: string,
   query: { page: number; limit: number },
