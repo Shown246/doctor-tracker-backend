@@ -1,4 +1,5 @@
 import express from 'express';
+import { LoginTicket, OAuth2Client } from 'google-auth-library';
 import mongoose, { Types } from 'mongoose';
 import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import request from 'supertest';
@@ -1172,5 +1173,236 @@ describe('shared authentication throttling', () => {
       .set('X-CSRF-Token', token)
       .send({ email: 'other@example.test', password })
       .expect(429);
+  });
+});
+
+describe('Google authentication', () => {
+  beforeEach(() => {
+    const googleConfig = parseEnvironment({
+      ...validEnvironment,
+      MONGODB_URI: replica.getUri(),
+      GOOGLE_CLIENT_ID: 'synthetic-client.apps.googleusercontent.com',
+      GOOGLE_CLIENT_SECRET: 'synthetic-secret',
+    });
+    app = createApp({
+      config: googleConfig,
+      logger,
+      isDatabaseReady: async () => true,
+    });
+  });
+  async function begin() {
+    const agent = request.agent(app);
+    const token = await csrf(agent);
+    const result = await agent
+      .post('/api/v1/auth/google/start')
+      .set('X-CSRF-Token', token)
+      .send({})
+      .expect(200);
+    const url = new URL(result.body.data.url as string);
+    return { agent, url, token };
+  }
+  function provider(url: URL, overrides: Record<string, unknown> = {}) {
+    vi.spyOn(OAuth2Client.prototype, 'getToken').mockImplementation(
+      (async () => ({
+        tokens: { id_token: 'synthetic-token' },
+        res: null,
+      })) as OAuth2Client['getToken'],
+    );
+    const ticket = new LoginTicket('', {
+      iss: 'https://accounts.google.com',
+      aud: 'synthetic-client.apps.googleusercontent.com',
+      sub: 'google-subject-123',
+      email: 'google@example.test',
+      email_verified: true,
+      name: 'Google Example',
+      iat: Math.floor(Date.now() / 1000),
+      exp: Math.floor(Date.now() / 1000) + 3600,
+      nonce: url.searchParams.get('nonce')!,
+      ...overrides,
+    });
+    vi.spyOn(OAuth2Client.prototype, 'verifyIdToken').mockImplementation(
+      (async () => ticket) as OAuth2Client['verifyIdToken'],
+    );
+  }
+  async function callback(agent: ReturnType<typeof request.agent>, url: URL) {
+    return agent
+      .get('/api/v1/auth/google/callback')
+      .set('Sec-Fetch-Site', 'cross-site')
+      .set('Referer', 'https://accounts.google.com/')
+      .query({ code: 'synthetic-code', state: url.searchParams.get('state') })
+      .expect(302);
+  }
+  it('requires CSRF to start, uses PKCE and keeps the secret off the authorization URL', async () => {
+    await request(app).post('/api/v1/auth/google/start').send({}).expect(403);
+    const { url } = await begin();
+    expect(url.origin).toBe('https://accounts.google.com');
+    expect(url.searchParams.get('redirect_uri')).toBe(
+      `${validEnvironment.FRONTEND_ORIGIN}/api/v1/auth/google/callback`,
+    );
+    expect(url.searchParams.get('code_challenge_method')).toBe('S256');
+    expect(url.searchParams.get('code_challenge')).toBeTruthy();
+    expect(url.searchParams.has('client_secret')).toBe(false);
+    expect(url.searchParams.get('scope')).toBe('openid email profile');
+  });
+  it('rejects wrong state without exchanging a code and preserves origin protection elsewhere', async () => {
+    const { agent } = await begin();
+    const exchange = vi.spyOn(OAuth2Client.prototype, 'getToken');
+    const result = await agent
+      .get('/api/v1/auth/google/callback')
+      .query({ code: 'code', state: '0'.repeat(64) })
+      .expect(302);
+    expect(result.headers.location).toContain('googleError=state');
+    expect(exchange).not.toHaveBeenCalled();
+    await agent
+      .get('/api/v1/auth/google/pending')
+      .set('Referer', 'https://accounts.google.com/')
+      .expect(403);
+    await agent.get('/api/v1/auth/google/pending').expect(401);
+  });
+  it.each([{ email_verified: false }, { nonce: 'wrong' }])(
+    'rejects invalid provider identity: %j',
+    async (overrides) => {
+      const { agent, url } = await begin();
+      provider(url, overrides);
+      expect((await callback(agent, url)).headers.location).toContain(
+        'googleError=failed',
+      );
+      await agent.get('/api/v1/auth/google/pending').expect(401);
+    },
+  );
+  it('handles cancellation without exchanging a code', async () => {
+    const { agent, url } = await begin();
+    const result = await agent
+      .get('/api/v1/auth/google/callback')
+      .query({ state: url.searchParams.get('state'), error: 'access_denied' })
+      .expect(302);
+    expect(result.headers.location).toContain('googleError=cancelled');
+  });
+  it.each(['doctor', 'patient'] as const)(
+    'completes Google %s registration with existing approval rules and rotates the session',
+    async (role) => {
+      const { agent, url, token: oldToken } = await begin();
+      provider(url);
+      expect((await callback(agent, url)).headers.location).toContain(
+        '/register?google=1',
+      );
+      const identity = await agent
+        .get('/api/v1/auth/google/pending')
+        .expect(200);
+      expect(identity.body.data).toEqual({
+        name: 'Google Example',
+        email: 'google@example.test',
+        existingAccount: false,
+      });
+      await agent
+        .post('/api/v1/auth/google/register')
+        .set('X-CSRF-Token', oldToken)
+        .send({})
+        .expect(403);
+      const token = await csrf(agent);
+      const profile =
+        role === 'doctor'
+          ? doctorSubmission.profile
+          : patientSubmission.profile;
+      const registered = await agent
+        .post('/api/v1/auth/google/register')
+        .set('X-CSRF-Token', token)
+        .send({ role, profile })
+        .expect(201);
+      expect(registered.body.data.status).toBe(
+        role === 'doctor' ? 'pending' : 'active',
+      );
+      expect(registered.body.data.profileId === null).toBe(role === 'doctor');
+      expect(registered.body.data).not.toHaveProperty('googleSubject');
+      expect(await User.countDocuments()).toBe(1);
+      expect(await Patient.countDocuments()).toBe(role === 'patient' ? 1 : 0);
+      await agent.get('/api/v1/auth/me').expect(200);
+      await agent.get('/api/v1/auth/google/pending').expect(401);
+      const repeat = await begin();
+      provider(repeat.url);
+      expect(
+        (await callback(repeat.agent, repeat.url)).headers.location,
+      ).toMatch(role === 'doctor' ? /\/status$/ : /\/patient$/);
+      await repeat.agent.get('/api/v1/auth/me').expect(200);
+    },
+  );
+  it('requires the existing password before linking an email collision', async () => {
+    const existing = await pending('doctor', 'google@example.test');
+    const { agent, url } = await begin();
+    provider(url);
+    await callback(agent, url);
+    expect(
+      (await agent.get('/api/v1/auth/google/pending').expect(200)).body.data
+        .existingAccount,
+    ).toBe(true);
+    const token = await csrf(agent);
+    await agent
+      .post('/api/v1/auth/google/register')
+      .set('X-CSRF-Token', token)
+      .send({ role: 'doctor', profile: doctorSubmission.profile })
+      .expect(409);
+    await agent
+      .post('/api/v1/auth/google/link')
+      .set('X-CSRF-Token', token)
+      .send({ password: 'wrong-password-value' })
+      .expect(401);
+    expect(
+      (await User.findById(existing.id).select('+googleSubject'))
+        ?.googleSubject,
+    ).toBeUndefined();
+    await agent
+      .post('/api/v1/auth/google/link')
+      .set('X-CSRF-Token', token)
+      .send({ password })
+      .expect(200);
+    expect(
+      (await User.findById(existing.id).select('+googleSubject'))
+        ?.googleSubject,
+    ).toBe('google-subject-123');
+    await agent.get('/api/v1/auth/me').expect(200);
+  });
+  it('denies disabled Google accounts', async () => {
+    const user = await pending();
+    user.googleSubject = 'google-subject-123';
+    user.status = 'disabled';
+    await user.save();
+    const { agent, url } = await begin();
+    provider(url);
+    expect((await callback(agent, url)).headers.location).toContain(
+      'googleError=failed',
+    );
+    await agent.get('/api/v1/auth/me').expect(401);
+  });
+});
+
+describe('Google transaction expiry', () => {
+  it('rejects an expired OAuth transaction before contacting Google', async () => {
+    const googleConfig = parseEnvironment({
+      ...validEnvironment,
+      MONGODB_URI: replica.getUri(),
+      GOOGLE_CLIENT_ID: 'synthetic-client',
+      GOOGLE_CLIENT_SECRET: 'synthetic-secret',
+    });
+    app = createApp({
+      config: googleConfig,
+      logger,
+      isDatabaseReady: async () => true,
+    });
+    const agent = request.agent(app);
+    const token = await csrf(agent);
+    const started = await agent
+      .post('/api/v1/auth/google/start')
+      .set('X-CSRF-Token', token)
+      .send({})
+      .expect(200);
+    const url = new URL(started.body.data.url as string);
+    const exchange = vi.spyOn(OAuth2Client.prototype, 'getToken');
+    vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 10 * 60 * 1000 + 1);
+    const result = await agent
+      .get('/api/v1/auth/google/callback')
+      .query({ code: 'synthetic-code', state: url.searchParams.get('state') })
+      .expect(302);
+    expect(result.headers.location).toContain('googleError=state');
+    expect(exchange).not.toHaveBeenCalled();
   });
 });

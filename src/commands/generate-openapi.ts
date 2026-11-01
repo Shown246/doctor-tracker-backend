@@ -1,9 +1,10 @@
-import { writeFile } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { format, resolveConfig } from 'prettier';
 import { createOpenApiDocument } from '../http/openapi.js';
 
 const output = new URL('../../docs/openapi.json', import.meta.url);
+await mkdir(new URL('../../docs/', import.meta.url), { recursive: true });
 const config = await resolveConfig(fileURLToPath(output));
 await writeFile(
   output,

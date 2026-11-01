@@ -35,7 +35,10 @@ export async function findCurrentUser(id: string) {
   });
 }
 
-export async function register(input: RegistrationInput) {
+export async function register(
+  input: RegistrationInput,
+  googleSubject?: string,
+) {
   const passwordHash = await hashPassword(input.password);
   if (input.role === 'patient') {
     const id = await mongoose.connection.transaction(async (session) => {
@@ -50,6 +53,7 @@ export async function register(input: RegistrationInput) {
         name: input.name,
         email: input.email,
         passwordHash,
+        ...(googleSubject ? { googleSubject } : {}),
         role: 'patient',
         status: 'active',
         patientId: patient._id,
@@ -63,6 +67,7 @@ export async function register(input: RegistrationInput) {
     name: input.name,
     email: input.email,
     passwordHash,
+    ...(googleSubject ? { googleSubject } : {}),
     role: input.role,
     status: 'pending',
     pendingRegistration: { [input.role]: input.profile },

@@ -42,6 +42,8 @@ const environmentSchema = z
         'Use comma-separated DNS server IP addresses',
       ),
     SESSION_SECRET: z.string().min(32).max(1024),
+    GOOGLE_CLIENT_ID: z.string().trim().min(1).optional(),
+    GOOGLE_CLIENT_SECRET: z.string().trim().min(1).optional(),
     FRONTEND_ORIGIN: z.url().refine((value) => {
       const url = new URL(value);
       return (
@@ -67,6 +69,15 @@ const environmentSchema = z
       .default('info'),
   })
   .superRefine((value, context) => {
+    if (
+      Boolean(value.GOOGLE_CLIENT_ID) !== Boolean(value.GOOGLE_CLIENT_SECRET)
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['GOOGLE_CLIENT_ID'],
+        message: 'Configure both Google credentials or neither',
+      });
+    }
     if (
       value.NODE_ENV === 'production' &&
       !value.FRONTEND_ORIGIN.startsWith('https://')

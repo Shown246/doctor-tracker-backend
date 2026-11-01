@@ -1,5 +1,11 @@
 import { z } from 'zod';
 import {
+  googleRegistrationSchema,
+  googleLinkSchema,
+  googleStartResponseSchema,
+  googlePendingResponseSchema,
+} from '../modules/auth/google.schemas.js';
+import {
   csrfResponseSchema,
   currentUserResponseSchema,
   loginSchema,
@@ -88,6 +94,82 @@ export function createOpenApiDocument() {
       { name: 'Operations' },
     ],
     paths: {
+      '/auth/google/start': {
+        post: {
+          tags: ['Authentication'],
+          operationId: 'startGoogleSignIn',
+          security: csrfOnly,
+          responses: {
+            '200': response('GoogleStartResponse', 'Google authorization URL'),
+            ...commonErrors,
+            '429': throttled,
+          },
+        },
+      },
+      '/auth/google/callback': {
+        get: {
+          tags: ['Authentication'],
+          operationId: 'googleCallback',
+          security: session,
+          parameters: [
+            { name: 'state', in: 'query', schema: { type: 'string' } },
+            { name: 'code', in: 'query', schema: { type: 'string' } },
+            { name: 'error', in: 'query', schema: { type: 'string' } },
+          ],
+          responses: {
+            '302': {
+              description:
+                'Redirect to portal, registration completion or login with a safe error code',
+            },
+            ...commonErrors,
+          },
+        },
+      },
+      '/auth/google/pending': {
+        get: {
+          tags: ['Authentication'],
+          operationId: 'getGoogleRegistration',
+          security: session,
+          responses: {
+            '200': response(
+              'GooglePendingResponse',
+              'Session-bound verified Google identity',
+            ),
+            ...commonErrors,
+          },
+        },
+      },
+      '/auth/google/register': {
+        post: {
+          tags: ['Authentication'],
+          operationId: 'completeGoogleRegistration',
+          security: mutation,
+          requestBody: body('GoogleRegistration'),
+          responses: {
+            '201': response('CurrentUserResponse', 'Registered and signed in'),
+            ...commonErrors,
+            '409': failure('Account or profile already exists'),
+            '429': throttled,
+          },
+        },
+      },
+      '/auth/google/link': {
+        post: {
+          tags: ['Authentication'],
+          operationId: 'linkGoogleAccount',
+          security: mutation,
+          requestBody: body('GoogleLink'),
+          responses: {
+            '200': response(
+              'CurrentUserResponse',
+              'Linked Google and signed in after password verification',
+            ),
+            ...commonErrors,
+            '409': failure('Google account already linked'),
+            '429': throttled,
+          },
+        },
+      },
       ...managementPaths(),
       ...dashboardPaths(),
       '/health/live': {
@@ -320,6 +402,10 @@ export function createOpenApiDocument() {
         },
       },
       schemas: {
+        GoogleRegistration: json(googleRegistrationSchema),
+        GoogleLink: json(googleLinkSchema),
+        GoogleStartResponse: json(googleStartResponseSchema),
+        GooglePendingResponse: json(googlePendingResponseSchema),
         ...Object.fromEntries(
           Object.entries({ ...managementSchemas, ...dashboardSchemas }).map(
             ([name, schema]) => [name, json(schema)],

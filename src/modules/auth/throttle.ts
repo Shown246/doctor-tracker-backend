@@ -20,7 +20,10 @@ export function authThrottle(
     const { limit, windowMs } = AUTH_LIMITS[kind];
     const now = Date.now();
     const windowStart = Math.floor(now / windowMs) * windowMs;
-    const email: unknown = request.body?.email;
+    const email: unknown =
+      request.path === '/google/link'
+        ? request.session.googleIdentity?.email
+        : request.body?.email;
     const identity =
       kind === 'loginAccountIp' && typeof email === 'string'
         ? email.trim().toLowerCase()

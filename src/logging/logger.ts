@@ -11,6 +11,7 @@ export function createLogger(level: Environment['LOG_LEVEL'] = 'info') {
         'passwordHash',
         'MONGODB_URI',
         'SESSION_SECRET',
+        'GOOGLE_CLIENT_SECRET',
         'req.headers',
         'req.body',
       ],

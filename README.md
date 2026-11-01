@@ -1,86 +1,36 @@
-# Doctor Tracker backend
+# Doctor Tracker Backend
 
-Standalone Express 5 REST API, built with Node.js 24, TypeScript, Mongoose and Zod. The backend includes registration/approval, persistent sessions, management, assignments, clinical updates/private notes, role-specific dashboards, scoped filters, synthetic seeds and an admin API explorer. Milestone 4 is a local release candidate; hosting, hosted CI and the stable release remain gated. The frontend is a separate application and has not been started.
+## Description
 
-## Setup
+A REST API for doctor/patient profiles, registration approvals, assignments, clinical updates and private notes. Role-based access scopes each user's records. Built with Express 5, TypeScript, Mongoose and Zod; MongoDB stores application data, sessions and login throttles.
 
-Install Node.js **24 LTS** and npm 11. From a clean checkout:
+## Setup guide
 
-```powershell
-npm ci
-Copy-Item .env.example .env
-# Edit .env with your development Atlas URI and a random session secret.
-npm run db:check
-npm run db:indexes
-npm run dev
-```
+Requires **Node.js 24**, **npm 11**, and **MongoDB Atlas or an initialized replica set**. Standalone MongoDB is unsupported. Commands use PowerShell (`cp` replaces `Copy-Item` in Bash).
 
-The local server defaults to `http://localhost:4000`. Production-style execution:
+1. Prepare a development database. For Atlas, create a database user and allow your machine's IP.
+2. Install dependencies and copy [.env.example](.env.example):
 
-```powershell
-npm run build
-npm start
-```
+   ```powershell
+   cd doctor-tracker-backend
+   npm ci
+   Copy-Item .env.example .env
+   ```
 
-The server validates configuration and connects to a replica set before listening. Development uses Atlas. Standalone MongoDB is rejected because later workflows require transactions. Index creation is explicit in every environment; startup never creates indexes automatically. Run `db:indexes` before using a newly configured database. It creates missing indexes without dropping existing indexes or data, and fails on incompatible existing indexes or uniqueness violations.
+3. Set these values in `.env`:
 
-## Configuration
+   | Variable           | Value                                        |
+   | ------------------ | -------------------------------------------- |
+   | `MONGODB_URI`      | Your replica-set URI; URL-encode credentials |
+   | `MONGODB_DATABASE` | `doctor_tracker_development`                 |
+   | `SESSION_SECRET`   | Random secret, at least 32 characters        |
+   | `FRONTEND_ORIGIN`  | `http://localhost:3000`                      |
+   | `PORT`             | `4000`                                       |
 
-Node loads the optional, ignored `.env` file; values already in the process environment take precedence. Never commit credentials or put real patient data in fixtures.
+   Generate a secret using the command in `.env.example`. Keep `.env` private; leave `TRUST_PROXY=false` for direct local access.
 
-| Variable           | Meaning                                                                                                                                       |
-| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `NODE_ENV`         | `development` (default), `test` or `production`                                                                                               |
-| `PORT`             | Integer 1–65535; default 4000                                                                                                                 |
-| `MONGODB_URI`      | Required `mongodb+srv://` or `mongodb://` replica-set URI                                                                                     |
-| `MONGODB_DATABASE` | Required explicit database name, overriding the URI default                                                                                   |
-| `DNS_SERVERS`      | Optional comma-separated resolver IPs, used only by this Node process; leave unset when local DNS works                                       |
-| `SESSION_SECRET`   | Required random secret, at least 32 characters; signs session cookies and hashes rate-limit identities; keep stable across restarts/instances |
-| `FRONTEND_ORIGIN`  | Required exact origin, e.g. `http://localhost:3000`; production requires HTTPS                                                                |
-| `TRUST_PROXY`      | `false` (default) or comma-separated explicit proxy IPs/CIDRs or Express named subnets; configure for the actual trusted proxy network        |
-| `LOG_LEVEL`        | `fatal`, `error`, `warn`, `info` (default), `debug`, `trace` or `silent`                                                                      |
-
-Use separate databases: `doctor_tracker_development`, `doctor_tracker_test` and `doctor_tracker_demo`. Automated tests start an isolated `MongoMemoryReplSet`; they do not load `.env` or connect to Atlas. Installation downloads MongoDB 8.2.6 into the ignored workspace cache `.cache/mongodb-binaries` and needs network access; subsequent installs and tests reuse it. This cache survives `npm ci`.
-
-If Atlas fails with `querySrv ECONNREFUSED` or `queryTxt ECONNREFUSED`, check the local DNS resolver. `DNS_SERVERS=1.1.1.1,8.8.8.8` can be supplied explicitly when those resolvers are appropriate for your network. No system DNS settings are changed. Connection failures produce a safe diagnostic rather than printing the driver error or URI. Also check Atlas network access and database-user permissions.
-
-Sessions use `express-session` and `connect-mongo`, sharing the existing MongoDB connection. The eight-hour **absolute** deadline is enforced on the server and preserved in both cookie and store expiry during activity. Login regenerates the session; logout destroys it and clears its host-only `doctor_tracker.sid` cookie. Cookies use `HttpOnly`, `SameSite=Lax`, and `Secure` in production. Run `db:indexes` after upgrading to install the session and throttle TTL indexes. MongoDB removes expired records asynchronously; expiry checks do not depend on cleanup timing.
-
-Every mutation requires a session-bound `X-CSRF-Token`, including registration/login/logout. Fetch `GET /api/v1/auth/csrf` first and retain the cookie; fetch a new token after login. Browser `Origin` or `Referer`, when present, must match `FRONTEND_ORIGIN` exactly. Cross-site Fetch Metadata without an allowed origin is rejected. Non-browser clients may omit origin headers but must still use CSRF tokens and cookies. Browser clients use the frontend same-origin proxy; credentialed cross-origin CORS is not enabled.
-
-See [authentication and approval usage](docs/authentication.md) for payloads and cookie-aware examples, and the generated [OpenAPI 3.1 contract](docs/openapi.json). Regenerate it with `npm run docs:openapi` after changing Zod contracts; tests detect drift. `/api/v1/docs` serves the active-admin-only API explorer; its assets and `/api/v1/docs/openapi.json` require the same authorization. The current contract is `1.0.0-rc.1`; `v1.0.0` is reserved for the verified hosted release.
-
-See [management and clinical API usage](docs/management-and-clinical.md) for list queries, role permissions, revision checks, private notes, patient self-service and deletion semantics.
-
-See [analytics and filters](docs/analytics.md) for bounded role responses, zero-filled Dhaka date buckets and paginated option lookup. [Synthetic data and performance](docs/data-and-performance.md) covers guarded demo seeds, separate configurable performance fixtures and measured query plans. [Deployment and release](docs/deployment.md) describes the Render blueprint, dedicated Atlas setup, HTTPS acceptance client, restart checks and stable contract publication.
-
-All timestamps are UTC. Birth dates are validated real `YYYY-MM-DD` dates from 1900 through today in `Asia/Dhaka`; age is derived rather than stored. Creation-date filters use inclusive `Asia/Dhaka` calendar boundaries.
-
-## Health and responses
-
-| Endpoint                  | Behavior                                                                     |
-| ------------------------- | ---------------------------------------------------------------------------- |
-| `GET /health/live`        | `200` while the HTTP process is alive, independently of MongoDB              |
-| `GET /health/ready`       | `200` only while a bounded database ping succeeds; otherwise `503 NOT_READY` |
-| `/api/v1/auth/*`          | CSRF, registration, login, current account and logout                        |
-| `/api/v1/registrations/*` | Active-admin registration review and decisions                               |
-| `/api/v1/doctors/*`       | Active-admin doctor management and assignments                               |
-| `/api/v1/patients/*`      | Active-admin patient management and private-note review                      |
-| `/api/v1/me/*`            | Session-scoped doctor care and patient profiles/contact details              |
-| `GET /api/v1/dashboard`   | Active account's own role-specific summary and bounded charts                |
-| `GET /api/v1/filters`     | Paginated option lookup; admin/assigned-doctor scope                         |
-| `/api/v1/docs`            | Active-admin-only interactive explorer and runtime contract                  |
-| Other `/api/v1/*` routes  | Unknown routes return `404 NOT_FOUND`                                        |
-
-Single records use `{ data }`. Lists use `{ data, meta: { page, limit, total, totalPages } }`. Errors use `{ error: { code, message, fieldErrors?, requestId } }`. Every response has a generated `X-Request-Id`; incoming IDs are not trusted. Helmet is enabled and JSON bodies are limited to 32 KiB. Malformed JSON returns 400, oversized JSON 413, validation errors 400, duplicate keys 409 and unexpected errors 500. Responses never include stack traces or raw database errors.
-
-Structured logs contain generated request IDs, methods, status codes and duration. Bodies, headers, URLs, query strings, account identities, passwords, hashes and raw driver errors are not logged. Database lifecycle events are logged without connection credentials. `SIGINT`/`SIGTERM` stop new requests, drain HTTP connections and disconnect MongoDB, with a ten-second shutdown deadline.
-
-## Private admin provisioning
-
-No public admin registration exists. Supply `ADMIN_NAME`, `ADMIN_EMAIL` and `ADMIN_PASSWORD` through temporary environment variables. Passwords must be 12–128 characters and are hashed with Argon2id (64 MiB memory, three iterations, one lane).
-
-PowerShell example with a hidden password prompt:
+4. Run `npm run db:check`, then `npm run db:indexes`. Index creation is explicit, never automatic at startup.
+5. Provision an administrator with temporary environment variables (password: 12-128 characters):
 
 ```powershell
 $env:ADMIN_NAME = Read-Host 'Admin name'
@@ -95,38 +45,48 @@ try {
 }
 ```
 
-The command creates an active admin, emits only its ID/role/status, and exits nonzero on failure. It creates user indexes before insertion and refuses to overwrite any existing account or promote a doctor/patient. Existing accounts and passwords remain unchanged on duplicates. Do not pass credentials as command-line arguments. Automated tests provision synthetic accounts only; no working admin credentials are shipped.
+6. Run `npm run dev`. Check [localhost:4000/health/ready](http://localhost:4000/health/ready) returns 200, then start the [frontend](../doctor-tracker-frontend/README.md). Doctor/patient registration requires administrator approval.
 
-## Structure and data integrity
+For compiled execution: `npm run build`, then `npm start`.
 
-```text
-src/
-  app.ts                 Express factory without network/database side effects
-  server.ts              Database connection, HTTP listener and process lifecycle
-  commands/              Database check, explicit indexes, private admin creation
-  config/                Validated environment and session/date defaults
-  database/              Connection, model helpers and index setup
-  errors/ http/ logging/ middleware/
-  modules/
-    auth/                Registration, credentials, sessions, CSRF, throttles and access guards
-    registrations/       Admin review and transactional approval/rejection
-    doctors/ patients/   Profiles, management, scoped reads and clinical writes
-    assignments/         Transactional relationships and revision-checked private notes
-    profiles/            Doctor/patient self-service routes and controllers
-    dashboards/          Role schemas, calendar buckets, bounded analytics and filter options
-  verification/          Cookie-aware deployment acceptance client
-tests/                   HTTP, configuration, model, database and lifecycle checks
+## System architecture
+
+```mermaid
+flowchart TD
+    browser["Browser"]
+    frontend["Next.js frontend / API proxy"]
+
+    subgraph backend["Express REST API"]
+        middleware["Middleware and routes<br/>Sessions, origin checks and CSRF"]
+        validation["Zod request validation"]
+        services["Role-scoped services<br/>Ownership and assignment checks"]
+        models["Mongoose models"]
+
+        middleware --> validation --> services --> models
+    end
+
+    database[("MongoDB replica set<br/>Application data, sessions and throttles")]
+
+    browser --> frontend
+    frontend -->|/api/v1| middleware
+    models --> database
 ```
 
-Users have exactly one immutable role (`admin`, `doctor`, `patient`) and an account status (`pending`, `active`, `rejected`, `disabled`). Non-admin active accounts require a matching profile reference. Pending submissions hold role-specific details without creating active profiles. Partial unique indexes allow at most one login per profile. Approval checks profile existence, matching normalized email and unclaimed ownership, then creates/links the profile and activates the account in a transaction. Rejection preserves submitted details and an optional reason. Decisions are final in v1. Admin-only review uses a dedicated projection and never returns credentials.
+Middleware checks sessions, origins and CSRF tokens. Services enforce roles, profile ownership and assignments, then return scoped JSON. Users reference profiles; doctor-patient associations hold assignments and private notes. MongoDB also persists sessions and shared throttles.
 
-Doctor email is required and unique. Patient email is optional: blank strings are removed, and a partial unique index applies only to stored strings. Emails are trimmed and lowercased. Patient status is one of `unassessed`, `under_treatment`, `stable`, `critical`, `recovered`. Gender values are `female`, `male`, `other`, `undisclosed`. Names are bounded to 120 characters, phones 32, hospitals 200, addresses 500, conditions 2000, private notes 20000. Patient condition may be absent while unassessed.
+## Technical decisions
 
-Profiles maintain normalized full-field and word-token search keys. Indexes cover creation-date sorting with `_id` tie-breakers, normalized name sorting, search keys and common exact filters. Assignments have a unique doctor/patient pair and reverse patient lookup indexes; the private note lives on that association. Patient clinical revision and note revision start at zero. Timestamps and schema-level optimistic concurrency are enabled.
+### 1. Transactions and revisions over last-write-wins updates
 
-Write models through validated document `save()`/`create()` operations. Query updates, `insertMany` and `bulkWrite` are intentionally rejected because they bypass document invariants and derived keys. Management services enforce linked-email immutability, atomic relationship changes and explicit revision semantics. Inclusion projections and explicit DTO functions in `src/http/dtos.ts` keep notes, hashes, pending details and search internals out of generic profile responses. Middleware and services enforce role/status, own-profile identity and assignment scope. Clinical writes increment the association's internal version in the same transaction as the patient edit to serialize with unlinking. Relationship writes increment the patient's internal version to serialize with deletion. Public clinical/note revisions remain separate from these internal concurrency guards.
+Transactions keep approvals, profile linking and assignment-sensitive writes consistent across records. Clinical/note revisions reject stale drafts with `409 REVISION_CONFLICT`, preventing silent overwrites. This requires a replica set and transaction overhead; clients must reload and review conflicts before saving again.
 
-## Verification
+### 2. Persistent sessions over stateless JWTs
+
+MongoDB-backed sessions survive restarts and support immediate logout. Fresh account checks reflect disabled accounts without waiting for token expiry; JWTs would require additional revocation logic. Reusing MongoDB avoids another datastore, but authentication depends on database availability and needs CSRF protection. Sessions expire after eight hours; production cookies require HTTPS.
+
+## API and checks
+
+API prefix: `/api/v1`. Active-admin-only explorer: `/api/v1/docs`. Mutations require a session cookie and `X-CSRF-Token` from `GET /api/v1/auth/csrf`; refresh the token after login.
 
 ```powershell
 npm run lint
@@ -136,10 +96,4 @@ npm test
 npm run build
 ```
 
-Vitest and Supertest cover foundation behavior, registration injection, all account states, CSRF/origin rejection, cookie policy, absolute/store expiry, process-restart persistence, logout/replay, shared throttling, the management permission matrix, safe projections, combined list filters, Dhaka date boundaries, competing approvals, stale clinical/note edits, simultaneous links and transaction rollback. Deterministic race tests pause writes while unlinking/deletion commits, then verify the resumed write loses access. GitHub Actions runs `npm ci` and the commands above on Node.js 24. CI requires no Atlas credentials.
-
-Milestone 4 adds tests for shared-patient/empty dashboards, daily/monthly range boundaries, bounded summaries, scoped option totals, protected docs/assets, seed idempotency/rollback and the deployment acceptance client against an independent HTTP server. `npm run perf:check` separately creates an isolated 100-doctor/10,000-patient fixture and writes explain metrics plus count checks to `docs/query-plans.json`. It does not load `.env` or touch Atlas. The scoped patient list and option queries start from indexed assignments; the report documents remaining exact-total and page-offset costs.
-
-`npm run seed:demo` requires exact `FIXTURE_DATABASE` matching, `SEED_DEMO=true` and three externally supplied role email/password pairs. `npm run seed:performance` additionally restricts targets to non-production development/test databases; sizes default to 100/10,000. Neither command resets data or runs on startup. See the fixture guide before invoking them. `npm run smoke:deployment` requires an explicitly selected HTTPS demo URL, external admin/fixture credentials and `SMOKE_ALLOW_WRITES=true`; it creates synthetic acceptance records and verifies the hosted workflows without printing secrets.
-
-Work is committed locally on `main`; remote creation and pushing are left to the repository owner. See [milestone 1 validation](docs/milestone-01-validation.md), [milestone 2 validation](docs/milestone-02-validation.md), [milestone 3 validation](docs/milestone-03-validation.md) and the [milestone 4 checklist](docs/milestone-04-backend-completion.md) for recorded results and remaining gate requirements.
+Tests use a disposable MongoDB replica set. See [deployment and backups](deploy/README.md).

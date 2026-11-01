@@ -17,6 +17,18 @@ declare module 'express-session' {
     userId?: string;
     expiresAt?: number;
     csrfToken?: string;
+    googleOAuth?: {
+      state: string;
+      nonce: string;
+      verifier: string;
+      expiresAt: number;
+    };
+    googleIdentity?: {
+      sub: string;
+      email: string;
+      name: string;
+      expiresAt: number;
+    };
   }
 }
 declare module 'express-serve-static-core' {
@@ -73,6 +85,14 @@ export function startSession(request: Request, userId?: string) {
 
 export function browserOriginProtection(config: Environment): RequestHandler {
   return (request, _response, next) => {
+    // Google returns a cross-site top-level GET. The callback validates the
+    // session-bound OAuth state instead; no other route skips origin checks.
+    if (
+      request.method === 'GET' &&
+      request.baseUrl === '/api/v1/auth' &&
+      request.path === '/google/callback'
+    )
+      return next();
     const origin = request.get('Origin');
     const referer = request.get('Referer');
     let permitted = true;

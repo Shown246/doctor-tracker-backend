@@ -45,6 +45,7 @@ const userSchema = new Schema(
   {
     name: boundedText(120),
     email: emailField(true),
+    googleSubject: { type: String, maxLength: 255, select: false },
     passwordHash: {
       type: String,
       required: true,
@@ -128,6 +129,13 @@ userSchema.pre('validate', function () {
   }
 });
 userSchema.index({ email: 1 }, { unique: true });
+userSchema.index(
+  { googleSubject: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { googleSubject: { $type: 'string' } },
+  },
+);
 userSchema.index(
   { doctorId: 1 },
   {

@@ -9,7 +9,7 @@ describe('backend API contract', () => {
     );
     expect(artifact).toEqual(createOpenApiDocument());
     expect(artifact.openapi).toBe('3.1.0');
-    expect(Object.keys(artifact.paths)).toHaveLength(27);
+    expect(Object.keys(artifact.paths)).toHaveLength(32);
     const pkg = JSON.parse(
       await readFile(new URL('../package.json', import.meta.url), 'utf8'),
     );

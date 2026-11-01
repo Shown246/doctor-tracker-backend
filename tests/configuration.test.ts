@@ -25,6 +25,8 @@ describe('environment configuration', () => {
   });
 
   it.each([
+    { GOOGLE_CLIENT_ID: 'client-without-secret' },
+    { GOOGLE_CLIENT_SECRET: 'secret-without-client' },
     { MONGODB_URI: '' },
     { MONGODB_URI: 'https://invalid.example' },
     { MONGODB_DATABASE: 'unsafe/name' },

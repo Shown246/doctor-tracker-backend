@@ -1,0 +1,9 @@
+node_modules
+dist
+.git
+.env*
+!.env.example
+*.pem
+.cache
+.mongodb-binaries
+coverage
